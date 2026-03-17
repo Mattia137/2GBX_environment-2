@@ -1,93 +1,145 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>3D NYC - Architectural Model</title>
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    <style>
-        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        
-        /* Progress Bar */
-        #loader-container { position: fixed; top: 0; left: 0; width: 100%; height: 3px; background: #222; z-index: 9999; }
-        #loader-bar { width: 0%; height: 100%; background: #00ffcc; transition: width 0.4s ease; box-shadow: 0 0 10px #00ffcc; }
-        
-        /* Minimalist Overlay */
-        #overlay {
-            position: absolute; bottom: 30px; left: 30px; color: white;
-            pointer-events: none; text-transform: uppercase; letter-spacing: 4px; font-size: 12px; opacity: 0.6;
-        }
-    </style>
+  <meta charset="utf-8">
+  <title>3D NYC - Architectural Model</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; background-color: #000; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    /* Progress Bar */
+    #loader-container { position: fixed; top: 0; left: 0; width: 100%; height: 3px; background: #222; z-index: 9999; }
+    #loader-bar { width: 0%; height: 100%; background: #00ffcc; transition: width 0.4s ease; box-shadow: 0 0 10px #00ffcc; }
+    /* Minimalist Overlay */
+    #overlay {
+      position: absolute; bottom: 30px; left: 30px; color: white;
+      pointer-events: none; text-transform: uppercase; letter-spacing: 4px; font-size: 12px; opacity: 0.6;
+    }
+    /* Error message styling */
+    #error-msg {
+      display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      color: #ff4444; font-size: 14px; text-align: center; z-index: 10000;
+      background: rgba(0,0,0,0.85); padding: 24px 32px; border-radius: 8px; max-width: 400px;
+    }
+  </style>
 </head>
 <body>
+  <div id="loader-container"><div id="loader-bar"></div></div>
+  <div id="map"></div>
+  <div id="overlay">NYC // 3D STYLIZED VIEW</div>
+  <div id="error-msg"></div>
 
-<div id="loader-container"><div id="loader-bar"></div></div>
-<div id="map"></div>
-<div id="overlay">NYC // 3D STYLIZED VIEW</div>
-
-<script>
+  <script>
     /**
-     * PARAMETER BLOCK: Adjust visual properties here
+     * CONFIGURATION
+     * ─────────────
+     * VERCEL_API_BASE: Set this to your Vercel deployment URL.
+     * The index.html is hosted on GitHub Pages, but the API key
+     * lives on Vercel as an environment variable. So we call
+     * the Vercel serverless function from here.
      */
+    const VERCEL_API_BASE = 'https://2gbxenvironment-2.vercel.app';
+
     const CONFIG = {
-        buildingColor: '#f2f2f2',    // Clean architectural white/grey
-        buildingOpacity: 0.85,       // Slight transparency
-        highlightColor: '#00ffcc',   // For future bridge elements
-        camera: {
-            center: [-74.006, 40.7128],
-            zoom: 15.8,
-            pitch: 62,
-            bearing: -18
-        }
+      buildingColor: '#f2f2f2',
+      buildingOpacity: 0.85,
+      highlightColor: '#00ffcc',
+      camera: {
+        center: [-74.006, 40.7128],
+        zoom: 15.8,
+        pitch: 62,
+        bearing: -18
+      }
     };
 
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: '/api/get-style', // Points to your Vercel Function
-        center: CONFIG.camera.center,
-        zoom: CONFIG.camera.zoom,
-        pitch: CONFIG.camera.pitch,
-        bearing: CONFIG.camera.bearing,
-        antialias: true
-    });
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.style.display = 'block';
+      document.getElementById('loader-container').style.display = 'none';
+    }
 
-    // Loading Bar Progress
-    map.on('dataloading', () => { document.getElementById('loader-bar').style.width = '40%'; });
-    
-    map.on('load', () => {
-        document.getElementById('loader-bar').style.width = '100%';
-        setTimeout(() => document.getElementById('loader-container').style.display = 'none', 600);
+    async function initMap() {
+      try {
+        // 1. Fetch the MapTiler style JSON from the Vercel serverless function
+        document.getElementById('loader-bar').style.width = '20%';
 
-        // Add 3D Extrusion Layer
-        map.addLayer({
+        const styleUrl = `${VERCEL_API_BASE}/api/get-style`;
+        const res = await fetch(styleUrl);
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `API returned status ${res.status}`);
+        }
+
+        const styleJson = await res.json();
+        document.getElementById('loader-bar').style.width = '50%';
+
+        // 2. Create the map with the fetched style
+        const map = new maplibregl.Map({
+          container: 'map',
+          style: styleJson,
+          center: CONFIG.camera.center,
+          zoom: CONFIG.camera.zoom,
+          pitch: CONFIG.camera.pitch,
+          bearing: CONFIG.camera.bearing,
+          antialias: true
+        });
+
+        // Loading progress
+        map.on('dataloading', () => {
+          document.getElementById('loader-bar').style.width = '70%';
+        });
+
+        map.on('load', () => {
+          document.getElementById('loader-bar').style.width = '100%';
+          setTimeout(() => document.getElementById('loader-container').style.display = 'none', 600);
+
+          // Add 3D building extrusion layer
+          // MapTiler styles use "openmaptiles" as the source name
+          // Check what sources actually exist in the loaded style
+          const sources = map.getStyle().sources;
+          const sourceId = Object.keys(sources).find(
+            key => sources[key].type === 'vector'
+          ) || 'openmaptiles';
+
+          map.addLayer({
             'id': '3d-buildings',
-            'source': 'openmaptiles',
+            'source': sourceId,
             'source-layer': 'building',
             'type': 'fill-extrusion',
             'minzoom': 13,
             'paint': {
-                'fill-extrusion-color': CONFIG.buildingColor,
-                'fill-extrusion-height': ['get', 'render_height'],
-                'fill-extrusion-base': ['get', 'render_min_height'],
-                'fill-extrusion-opacity': CONFIG.buildingOpacity
+              'fill-extrusion-color': CONFIG.buildingColor,
+              'fill-extrusion-height': ['get', 'render_height'],
+              'fill-extrusion-base': ['get', 'render_min_height'],
+              'fill-extrusion-opacity': CONFIG.buildingOpacity
             }
-        });
+          });
 
-        // Add subtle depth fog
-        map.setFog({
+          // Subtle depth fog
+          map.setFog({
             'range': [1, 8],
             'color': '#000000',
             'horizon-blend': 0.1
+          });
         });
-    });
 
-    // Error Handling
-    map.on('error', (e) => {
-        console.error("Map Error:", e);
-        document.getElementById('overlay').innerText = "Error Loading Map Data";
-    });
-</script>
+        // Map-level error handling
+        map.on('error', (e) => {
+          console.error('Map Error:', e);
+        });
+
+      } catch (err) {
+        console.error('Init error:', err);
+        showError(`Failed to load map: ${err.message}`);
+      }
+    }
+
+    // Kick it off
+    initMap();
+  </script>
 </body>
 </html>
