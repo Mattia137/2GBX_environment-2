@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>3D NYC Stylized - Architectural Mode</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; font-family: sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        /* Loading Bar Styles */
+        #loader-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 4px;
+            background: #222; z-index: 9999;
+        }
+        #loader-bar {
+            width: 0%; height: 100%; background: #ffffff;
+            transition: width 0.3s ease; box-shadow: 0 0 10px #fff;
+        }
+        #status-text {
+            position: fixed; top: 10px; left: 10px; color: white;
+            font-size: 10px; text-transform: uppercase; letter-spacing: 2px; z-index: 9999;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loader-container"><div id="loader-bar"></div></div>
+<div id="status-text">Streaming NYC Data...</div>
+<div id="map"></div>
+
+<script>
+    /**
+     * PARAMETER BLOCK: Global Visual Controls
+     */
+    const PARAMS = {
+        apiKey: 'MAP_TILER', // <--- YOU MUST PASTE YOUR KEY HERE
+        buildingColor: '#e0e0e0',        // Clean architectural clay/white
+        buildingOpacity: 0.9,
+        baseHeight: 0,
+        skyColor: '#050505',
+        camera: {
+            center: [-74.006, 40.7128], // Manhattan
+            zoom: 15.5,
+            pitch: 65,
+            bearing: -20
+        }
+    };
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: `https://api.maptiler.com/maps/basic-v2-dark/style.json?key=${PARAMS.apiKey}`,
+        center: PARAMS.camera.center,
+        zoom: PARAMS.camera.zoom,
+        pitch: PARAMS.camera.pitch,
+        bearing: PARAMS.camera.bearing,
+        antialias: true
+    });
+
+    // Loading Bar Logic
+    map.on('dataloading', () => { document.getElementById('loader-bar').style.width = '30%'; });
+    map.on('render', () => { 
+        if (map.loaded()) {
+            document.getElementById('loader-bar').style.width = '100%';
+            setTimeout(() => {
+                document.getElementById('loader-container').style.display = 'none';
+                document.getElementById('status-text').innerText = 'System Ready';
+            }, 500);
+        }
+    });
+
+    map.on('load', () => {
+        // Add the 3D Building Layer
+        map.addLayer({
+            'id': '3d-buildings',
+            'source': 'openmaptiles',
+            'source-layer': 'building',
+            'type': 'fill-extrusion',
+            'minzoom': 13,
+            'paint': {
+                'fill-extrusion-color': PARAMS.buildingColor,
+                // This 'get' logic pulls the actual height from the MapTiler data
+                'fill-extrusion-height': ['get', 'render_height'],
+                'fill-extrusion-base': ['get', 'render_min_height'],
+                'fill-extrusion-opacity': PARAMS.buildingOpacity
+            }
+        });
+
+        // Add Atmospheric Fog
+        map.setFog({
+            'range': [1, 10],
+            'color': PARAMS.skyColor,
+            'horizon-blend': 0.05
+        });
+    });
+</script>
+</body>
+</html>
