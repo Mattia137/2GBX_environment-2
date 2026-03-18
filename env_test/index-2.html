@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALLSPARK // HUDSON YARDS ENV_TEST</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --t1: rgba(255,255,255,0.95);
+            --t2: rgba(255,255,255,0.60);
+            --t3: rgba(255,255,255,0.30);
+            --accent: #fff;
+            --ln: rgba(255,255,255,0.15);
+        }
+
+        body, html { overflow: hidden; width: 100%; height: 100%; margin: 0; padding: 0; background-color: #000; font-family: 'Fragment Mono', monospace; color: var(--t1); }
+        #renderCanvas { width: 100%; height: 100%; touch-action: none; outline: none; z-index: 1; }
+        
+        #fui-hud { position: absolute; inset: 0; pointer-events: none; z-index: 10; padding: 30px; display: flex; flex-direction: column; justify-content: space-between; }
+        .pointer { pointer-events: auto; }
+
+        .brk { position: absolute; width: 30px; height: 30px; border: 1px solid var(--t3); pointer-events: none; }
+        .tl { top: 20px; left: 20px; border-right: none; border-bottom: none; }
+        .tr { top: 20px; right: 20px; border-left: none; border-bottom: none; }
+        .bl { bottom: 20px; left: 20px; border-right: none; border-top: none; }
+        .br { bottom: 20px; right: 20px; border-left: none; border-top: none; }
+
+        .header { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 4px; border-bottom: 1px solid var(--ln); padding-bottom: 10px; }
+        .side-panel { width: 220px; display: flex; flex-direction: column; gap: 20px; margin-top: 40px; }
+        .panel-box { background: rgba(0,0,0,0.6); border: 1px solid var(--ln); padding: 15px; backdrop-filter: blur(10px); }
+        .label { font-size: 8px; color: var(--t3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        input[type=range] { width: 100%; accent-color: var(--accent); cursor: crosshair; background: rgba(255,255,255,0.1); height: 2px; appearance: none; }
+
+        .geo-list { display: flex; flex-direction: column; gap: 5px; }
+        .geo-btn { 
+            background: transparent; border: 1px solid var(--ln); color: var(--t2); 
+            font-family: 'Fragment Mono'; font-size: 9px; padding: 8px; text-align: left;
+            cursor: pointer; transition: 0.2s; text-transform: uppercase;
+        }
+        .geo-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .geo-btn.active { border-color: var(--accent); color: #fff; background: rgba(255,255,255,0.05); }
+
+        .footer { display: flex; justify-content: space-between; font-size: 9px; color: var(--t3); border-top: 1px solid var(--ln); padding-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="fui-hud">
+        <div class="brk tl"></div><div class="brk tr"></div><div class="brk bl"></div><div class="brk br"></div>
+        
+        <div class="header">
+            <div>ALLSPARK // HUDSON YARDS CLIMATE INFRASTRUCTURE</div>
+            <div id="clock">00:00:00</div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; height: 100%;">
+            <div class="side-panel">
+                <div class="panel-box pointer">
+                    <div class="label">01 // SUN_SIMULATOR</div>
+                    <div style="margin-bottom:15px">
+                        <div class="label" style="color:var(--t2)">HOUR: <span id="hour-val">14</span>:00</div>
+                        <input type="range" id="sun-hour" min="6" max="19" step="0.01" value="14">
+                    </div>
+                    <div>
+                        <div class="label" style="color:var(--t2)">MONTH_CYCLE</div>
+                        <input type="range" id="sun-month" min="0" max="11" step="1" value="5">
+                    </div>
+                </div>
+            </div>
+
+            <div class="side-panel">
+                <div class="panel-box pointer">
+                    <div class="label">03 // GEOMETRY_TOGGLE</div>
+                    <div class="geo-list" id="geo-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div>MODE: SOLID_HIGHLIGHT_ISOLATION</div>
+            <div>STATUS: NOMINAL // REF_v02</div>
+        </div>
+    </div>
+    
+    <canvas id="renderCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+
+        const PARAMS = {
+            matOpacity: 1,      
+            wireOpacity: 0.04,  
+            edgeOpacity: 0.0,
+            fogDensity: 0.0004, 
+            vignetteWeight: 3.5,
+            contrast: 1.6,
+            // Path configuration for models in parent directory
+            assetPath: "../" 
+        };
+
+        const createScene = function () {
+            const scene = new BABYLON.Scene(engine);
+            scene.clearColor = new BABYLON.Color4(0, 0, 0, 1);
+
+            scene.fogMode = BABYLON.Scene.FOGMODE_EXP;
+            scene.fogColor = new BABYLON.Color3(0, 0, 0);
+            scene.fogDensity = PARAMS.fogDensity;
+
+            const camera = new BABYLON.ArcRotateCamera("camera", -1.8, 1.2, 800, BABYLON.Vector3.Zero(), scene);
+            camera.attachControl(canvas, true);
+
+            // --- LIGHTING ---
+            const sunLight = new BABYLON.DirectionalLight("sunLight", new BABYLON.Vector3(-1, -2, -1), scene);
+            sunLight.position = new BABYLON.Vector3(200, 500, 200);
+            sunLight.intensity = 6.0;
+
+            const shadowGen = new BABYLON.ShadowGenerator(2048, sunLight);
+            shadowGen.usePoissonSampling = true; 
+
+            const ambient = new BABYLON.HemisphericLight("ambient", new BABYLON.Vector3(0, 1, 0), scene);
+            ambient.intensity = 0.5;
+
+            // --- MATERIALS ---
+            const whiteMat = new BABYLON.PBRMaterial("whiteMat", scene);
+            whiteMat.albedoColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+            whiteMat.roughness = 1.0;
+            whiteMat.metallic = 0.0;
+            whiteMat.alpha = PARAMS.matOpacity;
+            whiteMat.backFaceCulling = false;
+
+            const activeMat = new BABYLON.StandardMaterial("activeMat", scene);
+            activeMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+            activeMat.disableLighting = true; 
+
+            const wireMat = new BABYLON.StandardMaterial("wireMat", scene);
+            wireMat.emissiveColor = new BABYLON.Color3(1, 1, 1);
+            wireMat.wireframe = true;
+            wireMat.alpha = PARAMS.wireOpacity;
+            wireMat.disableLighting = true; 
+            wireMat.zOffset = -2;
+
+            const files = [
+                "cold_storage.glb", "dsr.glb", "highline.glb", "hy_new_dev.glb", 
+                "railroads.glb", "site_building.glb", "street.glb", 
+                "street_props.glb", "subway_system.glb", "terrain.glb", "mn04_building.glb"
+            ];
+
+            const geoListEl = document.getElementById('geo-list');
+
+            files.forEach(file => {
+                const btn = document.createElement('button');
+                btn.className = 'geo-btn';
+                btn.innerText = file.replace('.glb', '');
+                geoListEl.appendChild(btn);
+
+                // Load from parent directory path
+                BABYLON.SceneLoader.ImportMesh("", PARAMS.assetPath, file, scene, (meshes) => {
+                    meshes.forEach(mesh => {
+                        if (mesh.getTotalVertices() > 0) {
+                            mesh.material = whiteMat;
+                            mesh.receiveShadows = true;
+                            // Check filename for shadow exclusion
+                            if (file !== "mn04_building.glb") shadowGen.addShadowCaster(mesh);
+
+                            mesh.enableEdgesRendering(0.98);
+                            mesh.edgesWidth = 1.0;
+                            mesh.edgesColor = new BABYLON.Color4(1, 1, 1, PARAMS.edgeOpacity);
+
+                            const wireClone = mesh.clone(mesh.name + "_wire");
+                            wireClone.material = wireMat;
+                            wireClone.isPickable = false;
+                        }
+                    });
+
+                    btn.onclick = () => {
+                        const isCurrentlyActive = btn.classList.contains('active');
+                        document.querySelectorAll('.geo-btn').forEach(b => b.classList.remove('active'));
+                        scene.meshes.forEach(m => {
+                            if (m.material && m.material.name === "activeMat") {
+                                m.material = whiteMat;
+                            }
+                        });
+
+                        if (!isCurrentlyActive) {
+                            btn.classList.add('active');
+                            meshes.forEach(m => {
+                                if (m.getTotalVertices() > 0 && m.name.indexOf("_wire") === -1) {
+                                    m.material = activeMat;
+                                }
+                            });
+                        }
+                    };
+                });
+            });
+
+            function updateSun() {
+                const hour = parseFloat(document.getElementById('sun-hour').value);
+                const month = parseInt(document.getElementById('sun-month').value);
+                document.getElementById('hour-val').innerText = hour.toFixed(1);
+
+                const lat = 40.75 * (Math.PI / 180);
+                const declination = 23.45 * Math.sin((360 / 365) * (month * 30 - 81) * (Math.PI / 180)) * (Math.PI / 180);
+                const hourAngle = (hour - 12) * 15 * (Math.PI / 180);
+                
+                const alt = Math.asin(Math.sin(lat) * Math.sin(declination) + Math.cos(lat) * Math.cos(declination) * Math.cos(hourAngle));
+                const az = Math.atan2(Math.sin(hourAngle), Math.cos(hourAngle) * Math.sin(lat) - Math.tan(declination) * Math.cos(lat));
+
+                sunLight.direction = new BABYLON.Vector3(Math.sin(az) * Math.cos(alt), -Math.sin(alt), Math.cos(az) * Math.cos(alt));
+            }
+
+            document.getElementById('sun-hour').oninput = updateSun;
+            document.getElementById('sun-month').oninput = updateSun;
+            updateSun();
+
+            const pipeline = new BABYLON.DefaultRenderingPipeline("fui", true, scene, [camera]);
+            pipeline.imageProcessingEnabled = true;
+            pipeline.imageProcessing.vignetteEnabled = true;
+            pipeline.imageProcessing.vignetteWeight = PARAMS.vignetteWeight;
+            pipeline.imageProcessing.contrast = PARAMS.contrast;
+            pipeline.samples = 4;
+
+            return scene;
+        };
+
+        const scene = createScene();
+        engine.runRenderLoop(() => { 
+            scene.render(); 
+            const n = new Date();
+            document.getElementById('clock').innerText = n.getHours().toString().padStart(2,'0')+':'+n.getMinutes().toString().padStart(2,'0')+':'+n.getSeconds().toString().padStart(2,'0');
+        });
+        window.addEventListener("resize", () => { engine.resize(); });
+    </script>
+</body>
+</html>

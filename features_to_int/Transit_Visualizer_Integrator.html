@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Transit Engine - Integration Ready</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #111; 
+            font-family: monospace; 
+            color: #0f0;
+            user-select: none;
+        }
+        
+        /* Debug UI Panel */
+        #debug-ui { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            background: rgba(0, 0, 0, 0.8); 
+            padding: 15px; 
+            border: 1px solid #0f0;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        h2 { margin: 0 0 10px 0; font-size: 14px; text-transform: uppercase; }
+        .stat { margin-bottom: 5px; font-size: 12px; }
+        .status-dot { display: inline-block; width: 8px; height: 8px; background: #f00; border-radius: 50%; margin-right: 5px;}
+        
+        /* HTML Labels Layer */
+        #labels { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 5; }
+        .label { 
+            position: absolute; color: white; font-size: 10px; background: rgba(0,0,0,0.5); 
+            padding: 2px 4px; border-left: 2px solid #fff; white-space: pre;
+            transform: translate(-50%, -150%); will-change: left, top;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="debug-ui">
+        <h2>TRANSIT ENGINE DEBUG</h2>
+        <div class="stat">Flights: <span id="count-plane">0</span></div>
+        <div class="stat">Helis: <span id="count-heli">0</span></div>
+        <div class="stat">Ferries: <span id="count-ferry">0</span></div>
+        <div class="stat">Subways/Buses: <span id="count-transit">0</span></div>
+        <br>
+        <div class="stat"><span id="flight-status" class="status-dot"></span> API Polling</div>
+    </div>
+
+    <div id="labels"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        /* =============================================================================
+           [AI AGENT INTEGRATION GUIDE]
+           
+           This script serves as a standalone data and simulation engine. To integrate 
+           this into a larger master NYC Three.js scene, follow these steps:
+
+           1. GEOLOCATION ALIGNMENT: 
+              Update `CONFIG.ORIGIN_LAT` and `CONFIG.ORIGIN_LON` to match the exact (0,0,0) 
+              center coordinate of the master 3D NYC model.
+              Update `CONFIG.METERS_PER_THREE_UNIT`. (e.g., if the master scene is scaled 
+              so 1 unit = 1 meter, set this to 1. Currently 1000 = 1km).
+
+           2. MESH REPLACEMENT:
+              Replace the basic procedural geometries in the `templates` object with 
+              the high-poly GLTF/GLB models from the master project. 
+              Ensure your models face forward along the correct local axis.
+
+           3. DECOUPLING PRESENTATION:
+              The engine maintains a single source of truth: `objectMap`. 
+              `fetchFlights()` and `updateSimulatedTransit()` constantly update the 
+              `history`, `currentHeading`, and target positions in this map. 
+              You can rip out the Three.js rendering block entirely and simply 
+              read from `objectMap` in your master animation loop.
+           ============================================================================= */
+
+        // --- 1. CORE CONFIGURATION ---
+        const CONFIG = {
+            ORIGIN_LAT: 40.7527,       // Master Scene Origin (Hudson Yards)
+            ORIGIN_LON: -74.0017,      // Master Scene Origin (Hudson Yards)
+            METERS_PER_THREE_UNIT: 1000, // Scene scale. 1000 = 1km per ThreeJS unit.
+            
+            RADIUS_NM: 4,              // Live flight API fetch radius
+            API_INTERVAL: 5000,        // Live flight API poll rate
+            DELAY_MS: 6000             // Interpolation buffer for smooth flight animation
+        };
+
+        // --- 2. GEOLOCATION MATH ENGINE ---
+        const GEO_MATH = {
+            DEG_LAT_TO_METERS: 111320,
+            get DEG_LON_TO_METERS() { return 111320 * Math.cos(CONFIG.ORIGIN_LAT * (Math.PI / 180)); },
+            
+            toCartesian: function(lat, lon, altitudeMeters = 0) {
+                const xMeters = (lon - CONFIG.ORIGIN_LON) * this.DEG_LON_TO_METERS;
+                const zMeters = -(lat - CONFIG.ORIGIN_LAT) * this.DEG_LAT_TO_METERS; // -Z is North
+                
+                return new THREE.Vector3(
+                    xMeters / CONFIG.METERS_PER_THREE_UNIT,
+                    altitudeMeters / CONFIG.METERS_PER_THREE_UNIT,
+                    zMeters / CONFIG.METERS_PER_THREE_UNIT
+                );
+            }
+        };
+
+        // --- 3. STATE MANAGEMENT ---
+        const objectMap = new Map(); 
+
+        // Helpers
+        function feetToMeters(feet) { return feet * 0.3048; }
+        function easeInOutQuad(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+        function lerpAngle(start, end, amt) {
+            let diff = end - start;
+            while (diff < -180) diff += 360;
+            while (diff > 180) diff -= 360;
+            return start + diff * amt;
+        }
+
+        // ==============================================================================
+        // --- 4. PRESENTATION LAYER (THREE.JS ENVIRONMENT) ---
+        // Setup scene elements before they are referenced by initialization logic.
+        // ==============================================================================
+
+        const scene = new THREE.Scene();
+        scene.add(new THREE.GridHelper(5, 50, 0x223344, 0x112233));
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+        camera.position.set(0, 1.5, 2.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        
+        scene.add(new THREE.AmbientLight(0x404040));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 10, 5);
+        scene.add(dirLight);
+
+        // Dummy geometry to represent the vehicles
+        const templates = {
+            plane: new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.05), new THREE.MeshBasicMaterial({color: 0x00ffff})).rotateX(Math.PI/2),
+            heli: new THREE.Mesh(new THREE.SphereGeometry(0.015), new THREE.MeshBasicMaterial({color: 0xffaa00})),
+            ferry: new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 0.04), new THREE.MeshBasicMaterial({color: 0xff00ff})),
+            subway: new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.08), new THREE.MeshBasicMaterial({color: 0xaa44ff})),
+            bus: new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.03), new THREE.MeshBasicMaterial({color: 0x33ff33}))
+        };
+
+        function spawnPresentationAssets(id) {
+            const entity = objectMap.get(id);
+            if (!entity) return;
+            
+            entity.mesh = templates[entity.type].clone();
+            if (entity.type !== 'plane') entity.mesh.rotation.x = 0; 
+            scene.add(entity.mesh);
+
+            if (entity.type === 'plane' || entity.type === 'heli') {
+                const mat = new THREE.LineBasicMaterial({ color: entity.type === 'heli' ? 0xffaa00 : 0x00ffff, transparent: true, opacity: 0.2 });
+                entity.line = new THREE.Line(new THREE.BufferGeometry(), mat);
+                scene.add(entity.line); 
+            }
+
+            entity.htmlLabel = document.createElement('div');
+            entity.htmlLabel.className = `label ${entity.type}`;
+            document.getElementById('labels').appendChild(entity.htmlLabel);
+        }
+
+        function removePresentationAssets(id) {
+            const entity = objectMap.get(id);
+            if (!entity) return;
+            if (entity.mesh) scene.remove(entity.mesh);
+            if (entity.line) scene.remove(entity.line);
+            if (entity.htmlLabel) entity.htmlLabel.remove();
+        }
+
+        // --- 5. DATA ENGINE FUNCTIONS ---
+        
+        function initEntity(id, type, labelText) {
+            if (!objectMap.has(id)) {
+                objectMap.set(id, {
+                    type: type,
+                    history: [],
+                    currentPos: new THREE.Vector3(),
+                    currentHeading: 0,
+                    targetHeading: 0,
+                    isStale: false,
+                    lastSeen: Date.now(),
+                    labelText: labelText,
+                    mesh: null, line: null, htmlLabel: null 
+                });
+                spawnPresentationAssets(id); 
+            }
+        }
+
+        const DWELL_TIME_MS = 15000; 
+        const TERMINUS_DWELL_TIME_MS = 40000; 
+
+        const SIM_ROUTES = [
+            { id: 'f_weehawken', type: 'ferry', name: 'NYWW (Weehawken)', speedKmh: 35, altMeters: 0, fleetSize: 2, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.7625, lon: -74.0080 }, { lat: 40.7680, lon: -74.0095 }, { lat: 40.7760, lon: -74.0120 }] },
+            { id: 'f_hoboken14', type: 'ferry', name: 'NYWW (Hoboken 14th)', speedKmh: 35, altMeters: 0, fleetSize: 2, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.7600, lon: -74.0090 }, { lat: 40.7550, lon: -74.0150 }, { lat: 40.7520, lon: -74.0220 }] },
+            { id: 'f_hobokennjt', type: 'ferry', name: 'NYWW (Hoboken NJT)', speedKmh: 35, altMeters: 0, fleetSize: 3, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.7550, lon: -74.0090 }, { lat: 40.7450, lon: -74.0140 }, { lat: 40.7380, lon: -74.0220 }, { lat: 40.7350, lon: -74.0270 }] },
+            { id: 'f_paulus', type: 'ferry', name: 'NYWW (Paulus Hook)', speedKmh: 35, altMeters: 0, fleetSize: 3, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.7500, lon: -74.0110 }, { lat: 40.7350, lon: -74.0160 }, { lat: 40.7200, lon: -74.0230 }, { lat: 40.7110, lon: -74.0330 }] },
+            { id: 'f_stgeorge', type: 'ferry', name: 'NYC Ferry (St George)', speedKmh: 40, altMeters: 0, fleetSize: 3, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.7500, lon: -74.0110 }, { lat: 40.7350, lon: -74.0160 }, { lat: 40.7200, lon: -74.0200 }, { lat: 40.7050, lon: -74.0210 }, { lat: 40.6950, lon: -74.0220 }, { lat: 40.6700, lon: -74.0400 }, { lat: 40.6430, lon: -74.0730 }] },
+            { id: 'f_astoria', type: 'ferry', name: 'NYC Ferry (Astoria)', speedKmh: 35, altMeters: 0, fleetSize: 3, path: [{ lat: 40.7035, lon: -74.0050 }, { lat: 40.7020, lon: -74.0020 }, { lat: 40.7065, lon: -73.9970 }, { lat: 40.7095, lon: -73.9890 }, { lat: 40.7120, lon: -73.9780 }, { lat: 40.7135, lon: -73.9710 }, { lat: 40.7400, lon: -73.9610 }, { lat: 40.7435, lon: -73.9680 }, { lat: 40.7550, lon: -73.9530 }, { lat: 40.7700, lon: -73.9350 }] },
+            { id: 's_1', type: 'subway', name: '1/2/3 Train', speedKmh: 45, altMeters: -20, fleetSize: 4, path: [{ lat: 40.7656, lon: -73.9804 }, { lat: 40.7380, lon: -73.9996 }] },
+            { id: 's_A', type: 'subway', name: 'A/C/E Train', speedKmh: 50, altMeters: -25, fleetSize: 5, path: [{ lat: 40.7668, lon: -73.9828 }, { lat: 40.7400, lon: -74.0018 }] },
+            { id: 's_N', type: 'subway', name: 'N/Q/R/W Train', speedKmh: 45, altMeters: -15, fleetSize: 4, path: [{ lat: 40.7656, lon: -73.9804 }, { lat: 40.7559, lon: -73.9866 }, { lat: 40.7497, lon: -73.9878 }, { lat: 40.7354, lon: -73.9904 }] },
+            { id: 's_7', type: 'subway', name: '7 Train', speedKmh: 45, altMeters: -35, fleetSize: 3, path: [{ lat: 40.7516, lon: -73.9765 }, { lat: 40.7573, lon: -73.9897 }, { lat: 40.7568, lon: -73.9965 }, { lat: 40.7546, lon: -74.0021 }] },
+            { id: 's_L', type: 'subway', name: 'L Train', speedKmh: 45, altMeters: -20, fleetSize: 3, path: [{ lat: 40.7400, lon: -74.0018 }, { lat: 40.7317, lon: -73.9818 }] },
+            { id: 'b_M34', type: 'bus', name: 'M34 SBS', speedKmh: 20, altMeters: 0.5, fleetSize: 4, path: [{ lat: 40.7566, lon: -74.0068 }, { lat: 40.7436, lon: -73.9734 }] },
+            { id: 'b_M42', type: 'bus', name: 'M42 Local', speedKmh: 15, altMeters: 0.5, fleetSize: 4, path: [{ lat: 40.7618, lon: -74.0001 }, { lat: 40.7486, lon: -73.9675 }] },
+            { id: 'b_M11', type: 'bus', name: 'M11 Local', speedKmh: 22, altMeters: 0.5, fleetSize: 4, path: [{ lat: 40.7681, lon: -73.9855 }, { lat: 40.7415, lon: -74.0047 }] }
+        ];
+
+        SIM_ROUTES.forEach(route => {
+            route.schedule = [];
+            let currentTime = 0;
+            const buildDirection = (path) => {
+                for (let i = 0; i < path.length - 1; i++) {
+                    const p1 = GEO_MATH.toCartesian(path[i].lat, path[i].lon, route.altMeters);
+                    const p2 = GEO_MATH.toCartesian(path[i+1].lat, path[i+1].lon, route.altMeters);
+                    const distKm = p1.distanceTo(p2) * (CONFIG.METERS_PER_THREE_UNIT / 1000);
+                    const dx = p2.x - p1.x; const dz = p2.z - p1.z;
+                    let heading = (Math.atan2(dx, -dz) * 180 / Math.PI);
+                    if (heading < 0) heading += 360;
+                    const travelTimeMs = (distKm / route.speedKmh) * 3600000;
+                    route.schedule.push({ type: 'move', p1: p1, p2: p2, heading: heading, startTime: currentTime, endTime: currentTime + travelTimeMs });
+                    currentTime += travelTimeMs;
+                    const isTerminus = i === path.length - 2;
+                    const dwellTime = isTerminus ? TERMINUS_DWELL_TIME_MS : DWELL_TIME_MS;
+                    route.schedule.push({ type: 'stop', pos: p2, heading: heading, startTime: currentTime, endTime: currentTime + dwellTime });
+                    currentTime += dwellTime;
+                }
+            };
+            buildDirection(route.path);
+            buildDirection([...route.path].reverse());
+            route.totalLoopDurationMs = currentTime;
+        });
+
+        // Initialize static transit fleet
+        SIM_ROUTES.forEach(route => {
+            for (let j = 0; j < route.fleetSize; j++) {
+                initEntity(`${route.id}_v${j}`, route.type, route.name);
+            }
+        });
+
+        async function fetchFlights() {
+            const flightStatus = document.getElementById('flight-status');
+            flightStatus.style.background = '#ffaa00';
+            const endpoints = [
+                `https://api.airplanes.live/v2/point/${CONFIG.ORIGIN_LAT}/${CONFIG.ORIGIN_LON}/${CONFIG.RADIUS_NM}`,
+                `https://api.adsb.lol/v2/point/${CONFIG.ORIGIN_LAT}/${CONFIG.ORIGIN_LON}/${CONFIG.RADIUS_NM}`
+            ];
+            let data = null;
+            for (const url of endpoints) {
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) { data = await response.json(); break; }
+                } catch (e) {}
+            }
+            if (!data || !data.ac) { flightStatus.style.background = '#ff3333'; return; }
+            const currentFlightIds = new Set();
+            data.ac.forEach(ac => {
+                if (!ac.lat || !ac.lon) return;
+                currentFlightIds.add(ac.hex);
+                const isHeli = (ac.category === 'A7' || ac.category === 'A07' || (ac.desc && ac.desc.toUpperCase() === 'ROTORCRAFT'));
+                const altMeters = ac.alt_baro === 'ground' ? 0 : feetToMeters(ac.alt_baro || ac.alt_geom || 0);
+                initEntity(ac.hex, isHeli ? 'heli' : 'plane', `${ac.flight || ac.hex}\n${Math.round(altMeters * 3.28)}ft`);
+                const entity = objectMap.get(ac.hex);
+                entity.isStale = false; entity.lastSeen = Date.now();
+                entity.history.push({ pos: GEO_MATH.toCartesian(ac.lat, ac.lon, altMeters), time: Date.now(), heading: ac.track || 0, gs: ac.gs || 0 });
+                const cutoff = Date.now() - (CONFIG.DELAY_MS + 60000); 
+                entity.history = entity.history.filter(h => h.time > cutoff);
+            });
+            for (const [id, entity] of objectMap.entries()) {
+                if (entity.type !== 'ferry' && entity.type !== 'subway' && entity.type !== 'bus' && !currentFlightIds.has(id)) entity.isStale = true;
+            }
+            flightStatus.style.background = '#00ff00';
+        }
+
+        function computeSimulationLogic() {
+            const now = Date.now();
+            const renderTime = now - CONFIG.DELAY_MS;
+            let counts = { plane: 0, heli: 0, ferry: 0, transit: 0 };
+
+            SIM_ROUTES.forEach(route => {
+                for (let j = 0; j < route.fleetSize; j++) {
+                    const entity = objectMap.get(`${route.id}_v${j}`);
+                    if (!entity) continue;
+                    if (route.type === 'ferry') counts.ferry++; else counts.transit++;
+                    const cycleTime = (now + (route.totalLoopDurationMs / route.fleetSize) * j) % route.totalLoopDurationMs;
+                    for (const event of route.schedule) {
+                        if (cycleTime >= event.startTime && cycleTime < event.endTime) {
+                            if (event.type === 'move') {
+                                let progress = easeInOutQuad((cycleTime - event.startTime) / (event.endTime - event.startTime));
+                                entity.currentPos.lerpVectors(event.p1, event.p2, progress);
+                            } else { entity.currentPos.copy(event.pos); }
+                            entity.targetHeading = event.heading; break;
+                        }
+                    }
+                    entity.currentHeading = lerpAngle(entity.currentHeading, entity.targetHeading, 0.05);
+                }
+            });
+
+            objectMap.forEach((entity, id) => {
+                if (entity.type === 'ferry' || entity.type === 'subway' || entity.type === 'bus') return;
+                if (entity.type === 'heli') counts.heli++; else counts.plane++;
+                if (entity.history.length === 0) return;
+                if (entity.isStale && renderTime > entity.history[entity.history.length - 1].time) {
+                    removePresentationAssets(id); objectMap.delete(id); return;
+                }
+                const hist = entity.history;
+                if (renderTime >= hist[hist.length - 1].time) {
+                    const last = hist[hist.length - 1];
+                    const distLocal = ((last.gs * 1.852) / 3600000) * (renderTime - last.time) * (1000 / CONFIG.METERS_PER_THREE_UNIT);
+                    const rad = last.heading * Math.PI / 180;
+                    entity.currentPos.copy(last.pos).add(new THREE.Vector3(Math.sin(rad) * distLocal, 0, -Math.cos(rad) * distLocal));
+                    entity.targetHeading = last.heading;
+                } else {
+                    for (let i = 0; i < hist.length - 1; i++) {
+                        if (hist[i].time <= renderTime && hist[i+1].time > renderTime) {
+                            const t = (renderTime - hist[i].time) / (hist[i+1].time - hist[i].time);
+                            entity.currentPos.lerpVectors(hist[i].pos, hist[i+1].pos, t);
+                            let hdgDiff = hist[i+1].heading - hist[i].heading;
+                            if (hdgDiff > 180) hdgDiff -= 360; if (hdgDiff < -180) hdgDiff += 360;
+                            entity.targetHeading = hist[i].heading + hdgDiff * t; break;
+                        }
+                    }
+                }
+                entity.currentHeading = lerpAngle(entity.currentHeading, entity.targetHeading, 0.1);
+            });
+
+            document.getElementById('count-plane').innerText = counts.plane;
+            document.getElementById('count-heli').innerText = counts.heli;
+            document.getElementById('count-ferry').innerText = counts.ferry;
+            document.getElementById('count-transit').innerText = counts.transit;
+        }
+
+        const projectionVector = new THREE.Vector3();
+        function renderPresentation() {
+            objectMap.forEach(entity => {
+                if (!entity.mesh) return;
+                entity.mesh.position.copy(entity.currentPos);
+                entity.mesh.rotation.y = -entity.currentHeading * (Math.PI / 180);
+                if (entity.line) entity.line.geometry.setFromPoints([new THREE.Vector3(entity.currentPos.x, 0, entity.currentPos.z), entity.currentPos]);
+                entity.htmlLabel.innerText = entity.labelText;
+                projectionVector.copy(entity.mesh.position).project(camera);
+                if (projectionVector.z < 1) { 
+                    const x = (projectionVector.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = (projectionVector.y * -0.5 + 0.5) * window.innerHeight;
+                    entity.htmlLabel.style.left = `${Math.round(x)}px`; entity.htmlLabel.style.top = `${Math.round(y)}px`;
+                    entity.htmlLabel.style.display = 'block';
+                } else { entity.htmlLabel.style.display = 'none'; }
+            });
+            controls.update(); renderer.render(scene, camera);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            computeSimulationLogic();
+            renderPresentation();
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        fetchFlights();
+        setInterval(fetchFlights, CONFIG.API_INTERVAL);
+        animate();
+
+    </script>
+</body>
+</html>
