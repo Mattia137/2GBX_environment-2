@@ -10,319 +10,396 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
-:root{--t1:rgba(255,255,255,.92);--t2:rgba(255,255,255,.60);--t3:rgba(255,255,255,.35);--t4:rgba(255,255,255,.18);--t5:rgba(255,255,255,.08);--ln1:rgba(255,255,255,.06);--ln2:rgba(255,255,255,.12);--ln3:rgba(255,255,255,.22)}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#000;color:var(--t1);font-family:'Fragment Mono',monospace;overflow:hidden;cursor:crosshair}
 
+/* ══════════════════════════════════════
+   PARAMETER BLOCK — EDIT THESE EASILY
+   ══════════════════════════════════════ */
+:root {
+  /* Text hierarchy */
+  --t1: rgba(255,255,255,0.92);   /* Primary */
+  --t2: rgba(255,255,255,0.60);   /* Secondary */
+  --t3: rgba(255,255,255,0.35);   /* Tertiary */
+  --t4: rgba(255,255,255,0.18);   /* Muted */
+  --t5: rgba(255,255,255,0.08);   /* Ghost */
+  /* Lines & borders */
+  --ln1: rgba(255,255,255,0.06);
+  --ln2: rgba(255,255,255,0.12);
+  --ln3: rgba(255,255,255,0.22);
+  /* Transit colors */
+  --c-plane: #66ddff;
+  --c-heli: #ffcc66;
+  --c-ferry: #cc88ff;
+  --c-subway: #aa88ff;
+  --c-bus: #88ffaa;
+  /* Vignette */
+  --vig-start: 35%;
+  --vig-mid: 60%;
+  --vig-end: 88%;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:var(--t1);font-family:'Fragment Mono',monospace;overflow:hidden;cursor:crosshair;-webkit-font-smoothing:antialiased}
+
+/* ═══ BOOT / GLITCH ═══ */
 #boot{position:fixed;inset:0;z-index:20000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center}
 #boot.out{opacity:0;pointer-events:none;transition:opacity .6s}
-#boot-title{font-size:22px;letter-spacing:14px;color:#fff;text-transform:uppercase}
-#boot-sub{font-size:10px;letter-spacing:8px;color:rgba(255,255,255,.25);margin-top:10px}
+#boot-title-wrap{position:relative;overflow:hidden}
+#boot-title{font-size:22px;letter-spacing:14px;color:#fff;text-transform:uppercase;white-space:nowrap;position:relative}
+#boot-sub{font-size:10px;letter-spacing:8px;color:rgba(255,255,255,.25);margin-top:10px;text-transform:lowercase}
 #boot-bar-wrap{width:220px;height:1px;background:rgba(255,255,255,.06);margin-top:36px}
 #boot-bar{height:100%;width:0%;background:rgba(255,255,255,.5);transition:width .2s}
 
+/* Pixelated glitch via SVG filter */
+svg#glitch-filters{position:absolute;width:0;height:0}
+
+.glitch-in{animation:glitchIn .8s steps(1) forwards}
+.glitch-out{animation:glitchOut .6s steps(1) forwards}
+
+@keyframes glitchIn{
+  0%{opacity:0;filter:url(#pixelate-heavy);transform:translateX(-8px)}
+  10%{opacity:1;filter:url(#pixelate-heavy);transform:translateX(4px)}
+  20%{opacity:1;filter:url(#pixelate-med);transform:translateX(-3px)}
+  30%{opacity:0;filter:url(#pixelate-heavy);transform:translateX(6px)}
+  40%{opacity:1;filter:url(#pixelate-med);transform:translateX(-2px)}
+  50%{opacity:1;filter:url(#pixelate-light);transform:translateX(1px)}
+  60%{opacity:0;filter:none;transform:translateX(-4px)}
+  70%{opacity:1;filter:url(#pixelate-light);transform:translateX(2px)}
+  80%{opacity:1;filter:none;transform:translateX(0)}
+  90%{opacity:1;filter:url(#pixelate-light);transform:translateX(-1px)}
+  100%{opacity:1;filter:none;transform:translateX(0)}
+}
+@keyframes glitchOut{
+  0%{opacity:1;filter:none;transform:translateX(0)}
+  15%{opacity:1;filter:url(#pixelate-light);transform:translateX(3px)}
+  30%{opacity:0;filter:url(#pixelate-med);transform:translateX(-5px)}
+  45%{opacity:1;filter:url(#pixelate-heavy);transform:translateX(4px)}
+  55%{opacity:0;filter:url(#pixelate-heavy);transform:translateX(-8px)}
+  70%{opacity:1;filter:url(#pixelate-heavy);transform:translateX(6px);clip-path:inset(30% 0 40% 0)}
+  85%{opacity:0;filter:url(#pixelate-heavy);transform:translateX(-3px);clip-path:inset(0)}
+  100%{opacity:0;filter:none}
+}
+
+/* ═══ MAP ═══ */
 #map{position:fixed;inset:0;z-index:1}
 .maplibregl-ctrl-bottom-left,.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-top-left,.maplibregl-ctrl-top-right{display:none!important}
+.maplibregl-marker{z-index:3!important}
 
-#vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse 55% 55% at 50% 48%,transparent 0%,rgba(0,0,0,.12) 35%,rgba(0,0,0,.5) 60%,rgba(0,0,0,.88) 88%,#000 100%)}
-#scanlines{position:fixed;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0px,transparent 3px,rgba(255,255,255,.005) 3px,rgba(255,255,255,.005) 4px)}
+/* ═══ VIGNETTE ═══ */
+#vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse 55% 55% at 50% 48%,transparent 0%,rgba(0,0,0,.1) var(--vig-start),rgba(0,0,0,.5) var(--vig-mid),rgba(0,0,0,.88) var(--vig-end),#000 100%)}
+#scanlines{position:fixed;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0px,transparent 3px,rgba(255,255,255,.005) 3px,rgba(255,255,255,.005) 4px);mix-blend-mode:overlay}
 
+/* ═══ HUD ═══ */
 #hud{position:fixed;inset:0;z-index:10;pointer-events:none;font-size:9px}
 #hud>*{pointer-events:auto}
-.hp{position:relative;padding:10px 12px;border:1px solid var(--ln1);background:rgba(0,0,0,.6);backdrop-filter:blur(8px);margin-bottom:8px}
-.hp::before{content:'';position:absolute;top:0;left:0;width:1px;height:100%;background:var(--t4)}
-.hp-t{font-size:8px;letter-spacing:3px;color:var(--t3);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.hp-t .sq{width:3px;height:3px;background:var(--t4)}.hp-t .sq.on{background:var(--t2)}
-.dr{display:flex;justify-content:space-between;padding:2px 0;font-size:9px}.dr .l{color:var(--t3)}.dr .v{color:var(--t2)}.dr .v.hi{color:var(--t1)}
-
-#left-col{position:absolute;top:52px;left:16px;width:230px;max-height:calc(100vh - 110px);overflow-y:auto;scrollbar-width:none}
-#left-col::-webkit-scrollbar{display:none}
-#right-col{position:absolute;top:52px;right:16px;width:210px}
-
-.lb{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;font-size:9px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;user-select:none}
-.lb:hover{color:var(--t2)}.lb.on{color:var(--t1)}
-.lb .ind{width:5px;height:5px;border:1px solid var(--t4)}.lb.on .ind{background:var(--t2);border-color:var(--t2)}
-
-.vr{display:flex;gap:4px;margin-top:4px}
-.vb{flex:1;padding:4px 0;text-align:center;font-size:7px;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--ln1);color:var(--t3);cursor:pointer;background:transparent;font-family:'Fragment Mono',monospace}
-.vb:hover{border-color:var(--t4);color:var(--t2)}.vb.on{border-color:var(--t3);color:var(--t1);background:rgba(255,255,255,.04)}
-
-.sun-input{background:rgba(0,0,0,.5);border:1px solid var(--ln2);color:var(--t2);font-family:'Fragment Mono',monospace;font-size:8px;padding:3px 6px;width:100%;outline:none}
-.sun-label{font-size:7px;color:var(--t3);letter-spacing:1px;margin-bottom:2px;text-transform:uppercase}
-.sun-row{display:flex;gap:4px;margin-top:4px}
-
-#top-strip{position:absolute;top:0;left:0;right:0;height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--ln1);pointer-events:none}
-.top-id{font-size:9px;letter-spacing:6px;color:var(--t2);text-transform:uppercase}.top-id em{font-style:normal;color:var(--t3)}
-.top-right{display:flex;gap:20px;align-items:center;color:var(--t3);font-size:9px;letter-spacing:2px}
-
-#bottom-strip{position:absolute;bottom:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-top:1px solid var(--ln1)}
-#coords{font-size:9px;color:var(--t3);letter-spacing:2px}#coords .v{color:var(--t2)}
-#status-row{position:absolute;bottom:48px;left:24px;right:24px;display:flex;justify-content:space-between;pointer-events:none;font-size:8px;color:var(--t3);letter-spacing:2px}
-#nav-btns{position:absolute;bottom:68px;left:18px;display:flex;flex-direction:column;gap:4px}
-.nb{width:26px;height:26px;border:1px solid var(--ln2);color:var(--t3);font-family:'Fragment Mono',monospace;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent}
-.nb:hover{border-color:var(--t3);color:var(--t2)}
 .brk{position:absolute;pointer-events:none}.brk::before,.brk::after{content:'';position:absolute;background:var(--ln3)}
 .brk.tl{top:12px;left:12px}.brk.tl::before{width:28px;height:1px}.brk.tl::after{width:1px;height:28px}
 .brk.tr{top:12px;right:12px}.brk.tr::before{width:28px;height:1px;right:0}.brk.tr::after{width:1px;height:28px;right:0}
 .brk.bl{bottom:12px;left:12px}.brk.bl::before{width:28px;height:1px;bottom:0}.brk.bl::after{width:1px;height:28px;bottom:0}
 .brk.br{bottom:12px;right:12px}.brk.br::before{width:28px;height:1px;right:0;bottom:0}.brk.br::after{width:1px;height:28px;right:0;bottom:0}
+
+#top-strip{position:absolute;top:0;left:0;right:0;height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--ln1);pointer-events:none}
+.top-id{font-size:9px;letter-spacing:6px;color:var(--t2);text-transform:uppercase}
+.top-id em{font-style:normal;color:var(--t3);letter-spacing:4px}
+.top-right{display:flex;gap:20px;align-items:center;color:var(--t3);font-size:9px;letter-spacing:2px}
+.dot-live{width:3px;height:3px;border-radius:50%;background:var(--t2);animation:bl 2.5s ease infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.15}}
+
+#h-line{position:absolute;top:50%;left:0;right:0;height:1px;background:var(--ln1);pointer-events:none}
+#heading-strip{position:absolute;top:44px;left:50%;transform:translateX(-50%);width:300px;height:18px;overflow:hidden;pointer-events:none}
+#crosshair{position:fixed;top:50%;left:50%;z-index:11;pointer-events:none;transform:translate(-50%,-50%)}
+
+.hp{position:relative;padding:10px 12px;border:1px solid var(--ln1);background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.hp::before{content:'';position:absolute;top:0;left:0;width:1px;height:100%;background:var(--t4)}
+.hp-t{font-size:8px;letter-spacing:3px;color:var(--t3);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.hp-t .sq{width:3px;height:3px;background:var(--t4)}.hp-t .sq.on{background:var(--t2)}
+.dr{display:flex;justify-content:space-between;padding:2px 0;font-size:9px}
+.dr .l{color:var(--t3)}.dr .v{color:var(--t2)}.dr .v.hi{color:var(--t1)}
+
+#left-col{position:absolute;top:52px;left:16px;width:230px;display:flex;flex-direction:column;gap:8px;max-height:calc(100vh - 120px);overflow-y:auto;scrollbar-width:none}
+#left-col::-webkit-scrollbar{display:none}
+#right-col{position:absolute;top:52px;right:16px;width:210px;display:flex;flex-direction:column;gap:8px}
+
+.lb{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;font-size:9px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;transition:color .15s;user-select:none}
+.lb:hover{color:var(--t2)}.lb.on{color:var(--t1)}
+.lb .ind{width:5px;height:5px;border:1px solid var(--t4);transition:all .15s}.lb.on .ind{border-color:var(--t2);background:var(--t2)}
+
+.vr{display:flex;gap:4px;margin-top:4px}
+.vb{flex:1;padding:4px 0;text-align:center;font-size:7px;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--ln1);color:var(--t3);cursor:pointer;transition:all .15s;background:transparent;font-family:'Fragment Mono',monospace}
+.vb:hover{border-color:var(--t4);color:var(--t2)}.vb.on{border-color:var(--t3);color:var(--t1);background:rgba(255,255,255,.04)}
+
+.mbars{display:flex;align-items:flex-end;gap:1px;height:20px;margin-top:4px}
+.mbars .b{flex:1;min-height:1px;background:var(--t5)}.mbars .b.h{background:rgba(255,255,255,.18)}
+
+#nav-btns{position:absolute;bottom:68px;left:18px;display:flex;flex-direction:column;gap:4px}
+.nb{width:26px;height:26px;background:transparent;border:1px solid var(--ln2);color:var(--t3);font-family:'Fragment Mono',monospace;font-size:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.nb:hover{border-color:var(--t3);color:var(--t2)}
+
+#glb-zone{border:1px dashed var(--ln2);padding:8px;text-align:center;font-size:8px;color:var(--t3);cursor:pointer;letter-spacing:1px;text-transform:uppercase}
+#glb-zone:hover{border-color:var(--t3);color:var(--t2)}
+#glb-input{display:none}
+
+#bottom-strip{position:absolute;bottom:0;left:0;right:0;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-top:1px solid var(--ln1)}
+#coords{font-size:9px;color:var(--t3);letter-spacing:2px}#coords .v{color:var(--t2)}
+#status-row{position:absolute;bottom:48px;left:24px;right:24px;display:flex;justify-content:space-between;pointer-events:none;font-size:8px;color:var(--t3);letter-spacing:2px}
+
+.sun-input{background:rgba(0,0,0,.5);border:1px solid var(--ln2);color:var(--t2);font-family:'Fragment Mono',monospace;font-size:8px;padding:3px 6px;width:100%;letter-spacing:1px;outline:none}
+.sun-input:focus{border-color:var(--t3)}
+.sun-label{font-size:7px;color:var(--t3);letter-spacing:1px;margin-bottom:2px;text-transform:uppercase}
+.sun-row{display:flex;gap:4px;margin-top:4px}
+
+.dt{position:absolute;pointer-events:none;font-size:8px;color:var(--t3);letter-spacing:2px}
+#radar-wrap{position:absolute;right:20px;bottom:76px;width:130px;height:130px;pointer-events:none}
 @keyframes pulse-ring{0%{transform:scale(1);opacity:.4}100%{transform:scale(3);opacity:0}}
+#error-msg{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--t1);font-size:10px;text-align:center;z-index:10001;background:rgba(0,0,0,.95);padding:20px 28px;border:1px solid var(--ln2);max-width:420px}
 </style>
 </head>
 <body>
-<div id="boot"><div id="boot-title">ALLSPARK</div><div id="boot-sub">activated</div><div id="boot-bar-wrap"><div id="boot-bar"></div></div></div>
+
+<!-- SVG Filters for pixelated glitch -->
+<svg id="glitch-filters"><defs>
+  <filter id="pixelate-light"><feFlood x="2" y="2" height="2" width="2"/><feComposite width="6" height="6"/><feTile result="a"/><feComposite in="SourceGraphic" in2="a" operator="in"/><feMorphology operator="dilate" radius="3"/></filter>
+  <filter id="pixelate-med"><feFlood x="3" y="3" height="3" width="3"/><feComposite width="10" height="10"/><feTile result="a"/><feComposite in="SourceGraphic" in2="a" operator="in"/><feMorphology operator="dilate" radius="5"/></filter>
+  <filter id="pixelate-heavy"><feFlood x="4" y="4" height="4" width="4"/><feComposite width="16" height="16"/><feTile result="a"/><feComposite in="SourceGraphic" in2="a" operator="in"/><feMorphology operator="dilate" radius="8"/></filter>
+</defs></svg>
+
+<div id="boot">
+  <div id="boot-title-wrap"><div id="boot-title" class="glitch-in">ALLSPARK</div></div>
+  <div id="boot-sub">activated</div>
+  <div id="boot-bar-wrap"><div id="boot-bar"></div></div>
+</div>
+
 <div id="map"></div>
 <div id="vignette"></div>
 <div id="scanlines"></div>
 
 <div id="hud">
 <div class="brk tl"></div><div class="brk tr"></div><div class="brk bl"></div><div class="brk br"></div>
-<div id="top-strip"><div class="top-id">ALLSPARK <em>// Hudson Yards</em></div><div class="top-right"><span id="clock">00:00:00</span></div></div>
+<div id="top-strip"><div class="top-id">ALLSPARK <em>// Hudson Yards Climate Infrastructure</em></div><div class="top-right"><div class="dot-live"></div><span id="clock">00:00:00</span><span>SYS NOMINAL</span></div></div>
+<div id="h-line"></div>
+<div id="heading-strip"><canvas id="heading-canvas" width="300" height="18"></canvas></div>
+<svg id="crosshair" width="50" height="50" viewBox="0 0 50 50"><circle cx="25" cy="25" r="15" fill="none" stroke="rgba(255,255,255,.07)" stroke-width=".5"/><circle cx="25" cy="25" r="6" fill="none" stroke="rgba(255,255,255,.12)" stroke-width=".5"/><line x1="0" y1="25" x2="19" y2="25" stroke="rgba(255,255,255,.1)" stroke-width=".5"/><line x1="31" y1="25" x2="50" y2="25" stroke="rgba(255,255,255,.1)" stroke-width=".5"/><line x1="25" y1="0" x2="25" y2="19" stroke="rgba(255,255,255,.1)" stroke-width=".5"/><line x1="25" y1="31" x2="25" y2="50" stroke="rgba(255,255,255,.1)" stroke-width=".5"/><rect x="23" y="23" width="4" height="4" fill="none" stroke="rgba(255,255,255,.16)" stroke-width=".5"/></svg>
 
 <div id="left-col">
-  <div class="hp"><div class="hp-t"><div class="sq on"></div>TRANSIT LIVE</div>
+  <div class="hp"><div class="hp-t"><div class="sq on"></div>TRANSIT LIVE<div style="flex:1"></div><span style="color:var(--t5)">01</span></div>
     <div class="dr"><span class="l">FLIGHTS</span><span class="v hi" id="ct-plane">0</span></div>
     <div class="dr"><span class="l">HELICOPTERS</span><span class="v" id="ct-heli">0</span></div>
     <div class="dr"><span class="l">FERRIES</span><span class="v" id="ct-ferry">0</span></div>
-    <div class="dr"><span class="l">TRANSIT</span><span class="v" id="ct-transit">0</span></div>
+    <div class="dr"><span class="l">SUBWAY</span><span class="v" id="ct-subway">0</span></div>
+    <div class="dr"><span class="l">BUSES</span><span class="v" id="ct-bus">0</span></div>
     <div class="dr"><span class="l">API</span><span class="v" id="ct-api">INIT</span></div></div>
-  <div class="hp"><div class="hp-t"><div class="sq on"></div>SUN PATH</div>
+
+  <div class="hp"><div class="hp-t"><div class="sq on"></div>CLIMATE<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
+    <div class="dr"><span class="l">TEMP</span><span class="v hi" id="v-temp">72.4°F</span></div>
+    <div class="dr"><span class="l">HUMIDITY</span><span class="v" id="v-hum">58%</span></div>
+    <div class="dr"><span class="l">WIND</span><span class="v" id="v-wind">12.3 MPH NW</span></div>
+    <div class="dr"><span class="l">SOLAR</span><span class="v hi" id="v-solar">842 W/m²</span></div>
+    <div class="mbars" id="temp-bars"></div></div>
+
+  <div class="hp"><div class="hp-t"><div class="sq on"></div>SUN PATH<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
     <div class="sun-row"><div style="flex:1"><div class="sun-label">MONTH</div><select id="sun-month" class="sun-input"><option value="0">JAN</option><option value="1">FEB</option><option value="2">MAR</option><option value="3" selected>APR</option><option value="4">MAY</option><option value="5">JUN</option><option value="6">JUL</option><option value="7">AUG</option><option value="8">SEP</option><option value="9">OCT</option><option value="10">NOV</option><option value="11">DEC</option></select></div>
     <div style="flex:1"><div class="sun-label">DAY</div><input type="number" id="sun-day" class="sun-input" value="15" min="1" max="31"></div></div>
-    <div class="sun-row"><div style="flex:1"><div class="sun-label">HOUR</div><input type="range" id="sun-hour" min="5" max="20" value="14" style="width:100%;accent-color:rgba(255,255,255,.3)"></div>
+    <div class="sun-row"><div style="flex:1"><div class="sun-label">HOUR</div><input type="range" id="sun-hour" min="0" max="23" value="14" style="width:100%;accent-color:rgba(255,255,255,.3)"></div>
     <div style="width:40px;text-align:right"><span id="sun-hour-val" style="font-size:9px;color:var(--t1)">14:00</span></div></div>
     <div class="dr" style="margin-top:4px"><span class="l">AZIMUTH</span><span class="v hi" id="sun-az">210°</span></div>
     <div class="dr"><span class="l">ALTITUDE</span><span class="v hi" id="sun-alt">52°</span></div></div>
-  <div class="hp"><div class="hp-t"><div class="sq"></div>READOUT</div>
-    <div class="dr"><span class="l">GLB FILES</span><span class="v hi" id="v-glb">0/10</span></div>
-    <div class="dr"><span class="l">ZOOM</span><span class="v" id="v-zoom">16</span></div>
-    <div class="dr"><span class="l">PITCH</span><span class="v" id="v-pitch">60°</span></div></div>
+
+  <div class="hp"><div class="hp-t"><div class="sq"></div>GEOMETRY<div style="flex:1"></div><span style="color:var(--t5)">04</span></div>
+    <div id="glb-zone">DROP .GLB // CLICK UPLOAD</div><input type="file" id="glb-input" accept=".glb,.gltf">
+    <div id="glb-status" style="font-size:8px;color:var(--t3);margin-top:4px;letter-spacing:1px"></div></div>
 </div>
 
 <div id="right-col">
-  <div class="hp"><div class="hp-t"><div class="sq on"></div>LAYERS</div>
+  <div class="hp"><div class="hp-t"><div class="sq on"></div>LAYERS<div style="flex:1"></div><span style="color:var(--t5)">01</span></div>
     <div class="lb on" data-layer="buildings" onclick="toggleLayer(this)"><div class="ind"></div>3D BUILDINGS</div>
-    <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
     <div class="lb on" data-layer="transit" onclick="toggleLayer(this)"><div class="ind"></div>TRANSIT</div>
-    <div class="lb on" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div></div>
-  <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW</div>
-    <div class="vr"><div class="vb on" onclick="flyTo('persp',this)">PERSP</div><div class="vb" onclick="flyTo('top',this)">TOP</div><div class="vb" onclick="flyTo('site',this)">SITE</div></div></div>
+    <div class="lb on" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
+    <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
+    <div class="lb on" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
+    <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div></div>
+  <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
+    <div class="vr"><div class="vb on" data-view="perspective" onclick="setView('perspective',this)">PERSP</div><div class="vb" data-view="top" onclick="setView('top',this)">TOP</div><div class="vb" data-view="site" onclick="setView('site',this)">SITE</div><div class="vb" data-view="orbit" onclick="setView('orbit',this)">ORBIT</div></div></div>
+  <div class="hp"><div class="hp-t"><div class="sq"></div>READOUT<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
+    <div class="dr"><span class="l">ZOOM</span><span class="v hi" id="v-zoom">16.0</span></div>
+    <div class="dr"><span class="l">PITCH</span><span class="v" id="v-pitch">62°</span></div>
+    <div class="dr"><span class="l">BEARING</span><span class="v" id="v-bearing">-18°</span></div>
+    <div class="dr"><span class="l">FPS</span><span class="v hi" id="v-fps">60</span></div>
+    <div class="dr"><span class="l">GLB FILES</span><span class="v" id="v-glb">0/10</span></div></div>
+  <div class="hp"><div class="hp-t"><div class="sq"></div>DATA<div style="flex:1"></div><span style="color:var(--t5)">04</span></div>
+    <div id="num-matrix" style="font-size:8px;line-height:1.5;color:var(--t4);font-variant-numeric:tabular-nums;white-space:pre"></div></div>
 </div>
 
-<div id="nav-btns"><div class="nb" onclick="flyTo('persp')">⌂</div><div class="nb" onclick="map&&map.zoomIn()">+</div><div class="nb" onclick="map&&map.zoomOut()">−</div></div>
-<div id="status-row"><span>HY-WEST 29TH-30TH</span><span>40.7538 / -74.0063</span></div>
-<div id="bottom-strip"><div id="coords">LAT <span class="v" id="c-lat">40.7538</span> &ensp;LON <span class="v" id="c-lon">-74.0063</span></div><div style="font-size:8px;color:var(--t4)">MAPTILER LIVE</div></div>
+<div id="radar-wrap"><canvas id="radar-canvas" width="260" height="260"></canvas></div>
+<div class="dt" style="top:65px;left:50%;transform:translateX(-50%)"><span style="border:1px solid var(--ln2);padding:1px 8px"><span id="heading-val" style="color:var(--t2)">295</span></span></div>
+<div id="nav-btns"><div class="nb" onclick="resetCamera()">⌂</div><div class="nb" onclick="map&&map.zoomIn()">+</div><div class="nb" onclick="map&&map.zoomOut()">−</div></div>
+<div id="status-row"><span>SECTOR: HY-WEST 29TH-30TH</span><span>MODE: OBSERVATION</span><span>40.7538 / -74.0063</span></div>
+<div id="bottom-strip"><div id="coords">LAT <span class="v" id="c-lat">40.7538</span> &ensp;LON <span class="v" id="c-lon">-74.0063</span> &ensp;ZOOM <span class="v" id="c-zoom">16.0</span></div><div style="font-size:8px;color:var(--t4);letter-spacing:2px">MAPTILER LIVE</div></div>
 </div>
+<div id="error-msg"></div>
 
 <script>
-/* ════════════════════════════════════════════════════════════
-   CORE CONFIG — Same origin as your working Transit_Visualizer
-   ════════════════════════════════════════════════════════════ */
-const SITE = { lng: -74.006283, lat: 40.753844 };
-const GLB_ORIGIN = { lng: -74.006649, lat: 40.754283 };
-const REPO = 'https://raw.githubusercontent.com/Mattia137/2GBX_environment-2/main/';
-const FILES = ['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','railroads.glb','site_building.glb','street.glb','street_props.glb','subway_system.glb','terrain.glb'];
+/* ══════════════════════════════════════════════
+   PARAMETERS — EASY ACCESS SETTINGS
+   ══════════════════════════════════════════════ */
+const PARAMS = {
+  // Material
+  buildingColor: '#ffffff',
+  buildingOpacity: 0.35,
+  glbColor: 0xffffff,
+  glbOpacity: 0.60,
+  glbRoughness: 0.5,
+  glbMetalness: 0.1,
+  // Light
+  ambientIntensity: 0.45,
+  dirLightIntensity: 0.65,
+  // Map
+  backgroundFill: '#050506',
+  landFill: '#060608',
+  landOpacity: 0.65,
+  roadColor: '#161620',
+  roadOpacity: 0.5,
+  waterColor: '#08080c',
+  gridOpacity: 0.08,
+  gridSize: 0.004,
+  gridCount: 30,
+  // Fog
+  fogNear: 0.5,
+  fogFar: 8,
+  // Transit
+  transitMarkerScale: 1.0,
+  flightApiRadius: 4,
+  flightApiInterval: 6000,
+};
 
-let map, glbLoaded = 0;
+const VERCEL_API='https://2gbxenvironment-2.vercel.app';
+const SITE={lng:-74.006283,lat:40.753844};
+const GLB_ORIGIN={lng:-74.006649,lat:40.754283}; // Shared origin for ALL GLBs — no rotation needed
+const CAM={center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18};
 
-/* ════ BOOT ════ */
-async function boot() {
-  await new Promise(r => {
-    let p = 0;
-    const iv = setInterval(() => {
-      p += 3 + Math.random() * 4;
-      if (p > 100) p = 100;
-      document.getElementById('boot-bar').style.width = p + '%';
-      if (p >= 100) { clearInterval(iv); setTimeout(r, 500); }
-    }, 50);
+const REPO_BASE='https://raw.githubusercontent.com/Mattia137/2GBX_environment-2/main/';
+const GLB_FILES=['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','railroads.glb','site_building.glb','street.glb','street_props.glb','subway_system.glb','terrain.glb'];
+
+/* ═══ BOOT ═══ */
+function bootSeq(){
+  return new Promise(resolve=>{
+    const bar=document.getElementById('boot-bar');
+    const title=document.getElementById('boot-title');
+    let p=0;
+    const iv=setInterval(()=>{
+      p+=1.5+Math.random()*3;if(p>100)p=100;
+      bar.style.width=p+'%';
+      if(p>=100){
+        clearInterval(iv);
+        setTimeout(()=>{
+          title.classList.remove('glitch-in');
+          title.classList.add('glitch-out');
+          setTimeout(()=>{
+            document.getElementById('boot').classList.add('out');
+            setTimeout(resolve,600);
+          },700);
+        },800);
+      }
+    },60);
   });
-  document.getElementById('boot').classList.add('out');
 }
 
-/* ════ CLEAN MAP STYLE ════ */
-function cleanStyle(s) {
-  if (!s.layers) return s;
-  s.layers = s.layers.filter(l => {
-    if (l.type === 'symbol') return false;
-    const id = (l.id || '').toLowerCase();
-    return !(id.includes('label') || id.includes('name') || id.includes('poi') || id.includes('icon') || id.includes('shield') || id.includes('oneway') || id.includes('arrow'));
-  });
-  s.layers.forEach(l => {
-    const id = (l.id || '').toLowerCase(), t = l.type;
-    if (t === 'background') { l.paint = { 'background-color': '#050506' }; return; }
-    if (id.includes('water') || id.includes('ocean')) { if (t === 'fill') l.paint = { ...l.paint, 'fill-color': '#08080c', 'fill-opacity': 0.9 }; return; }
-    if (id.includes('land') || id.includes('park') || id.includes('grass') || id.includes('wood') || id.includes('sand') || id.includes('vegetation') || id.includes('cemetery')) { if (t === 'fill') l.paint = { ...l.paint, 'fill-color': '#060608', 'fill-opacity': 0.6 }; return; }
-    if (id.includes('building')) { if (t === 'fill') l.paint = { ...l.paint, 'fill-color': '#0c0c10', 'fill-opacity': 0.15 }; return; }
-    if (id.includes('road') || id.includes('street') || id.includes('highway') || id.includes('motorway') || id.includes('trunk') || id.includes('path') || id.includes('bridge') || id.includes('tunnel') || id.includes('link') || id.includes('service')) { if (t === 'line') l.paint = { ...l.paint, 'line-color': '#161620', 'line-opacity': 0.5 }; return; }
-    if (id.includes('rail') || id.includes('transit')) { if (t === 'line') l.paint = { ...l.paint, 'line-color': '#101016', 'line-opacity': 0.3 }; return; }
-    if (t === 'fill') l.paint = { ...l.paint, 'fill-color': '#060608', 'fill-opacity': 0.5 };
-    if (t === 'line') l.paint = { ...l.paint, 'line-color': '#121216', 'line-opacity': 0.2 };
-  });
-  return s;
+/* ═══ SUN ═══ */
+function calcSun(month,day,hour,lat){
+  const doy=Math.floor(month*30.44+day);
+  const decl=23.45*Math.sin((360/365)*(doy-81)*Math.PI/180);
+  const ha=(hour-12)*15;
+  const lr=lat*Math.PI/180,dr=decl*Math.PI/180,hr=ha*Math.PI/180;
+  const alt=Math.asin(Math.sin(lr)*Math.sin(dr)+Math.cos(lr)*Math.cos(dr)*Math.cos(hr))*180/Math.PI;
+  const az=(Math.atan2(Math.sin(hr),Math.cos(hr)*Math.sin(lr)-Math.tan(dr)*Math.cos(lr))*180/Math.PI+180)%360;
+  return{alt:Math.max(0,alt),az};
+}
+function updateSun(){
+  const m=+document.getElementById('sun-month').value,d=+document.getElementById('sun-day').value||15,h=+document.getElementById('sun-hour').value;
+  document.getElementById('sun-hour-val').textContent=String(h).padStart(2,'0')+':00';
+  const s=calcSun(m,d,h,SITE.lat);
+  document.getElementById('sun-az').textContent=Math.round(s.az)+'°';
+  document.getElementById('sun-alt').textContent=Math.round(s.alt)+'°';
+  if(map)map.setLight({anchor:'map',color:'#ffffff',intensity:s.alt>0?0.3+s.alt/90*0.5:0.05,position:[1.5,s.az,Math.max(5,s.alt)]});
+}
+document.getElementById('sun-month').onchange=updateSun;
+document.getElementById('sun-day').onchange=updateSun;
+document.getElementById('sun-hour').oninput=updateSun;
+
+/* ═══ STYLE ═══ */
+function cleanStyle(s){
+  if(!s.layers)return s;
+  s.layers=s.layers.filter(l=>{if(l.type==='symbol')return false;const id=(l.id||'').toLowerCase();return!(id.includes('label')||id.includes('name')||id.includes('poi')||id.includes('icon')||id.includes('shield')||id.includes('oneway')||id.includes('arrow'))});
+  s.layers.forEach(l=>{const id=(l.id||'').toLowerCase(),t=l.type;
+    if(t==='background'){l.paint={'background-color':PARAMS.backgroundFill};return}
+    if(id.includes('water')||id.includes('ocean')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.waterColor,'fill-opacity':0.9};if(t==='line')l.paint={...l.paint,'line-color':'#0c0c10','line-opacity':.3};return}
+    if(id.includes('land')||id.includes('park')||id.includes('grass')||id.includes('wood')||id.includes('vegetation')||id.includes('cemetery')||id.includes('sand')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.landFill,'fill-opacity':PARAMS.landOpacity};return}
+    if(id.includes('building')){if(t==='fill')l.paint={...l.paint,'fill-color':'#0c0c10','fill-opacity':.15};return}
+    if(id.includes('road')||id.includes('street')||id.includes('highway')||id.includes('motorway')||id.includes('trunk')||id.includes('path')||id.includes('bridge')||id.includes('tunnel')||id.includes('link')||id.includes('service')){if(t==='line')l.paint={...l.paint,'line-color':PARAMS.roadColor,'line-opacity':PARAMS.roadOpacity};if(t==='fill')l.paint={...l.paint,'fill-color':'#0e0e14'};return}
+    if(id.includes('rail')||id.includes('transit')){if(t==='line')l.paint={...l.paint,'line-color':'#101016','line-opacity':.3};return}
+    if(id.includes('boundary')){if(t==='line')l.paint={...l.paint,'line-color':'#141418','line-opacity':.12};return}
+    if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.landFill,'fill-opacity':.5};
+    if(t==='line')l.paint={...l.paint,'line-color':'#121216','line-opacity':.2};
+  });return s;
 }
 
-/* ════ SUN ════ */
-function calcSun(mo, day, hr, lat) {
-  const doy = Math.floor(mo * 30.44 + day);
-  const decl = 23.45 * Math.sin((360 / 365) * (doy - 81) * Math.PI / 180);
-  const ha = (hr - 12) * 15;
-  const lr = lat * Math.PI / 180, dr = decl * Math.PI / 180, hr2 = ha * Math.PI / 180;
-  const alt = Math.asin(Math.sin(lr) * Math.sin(dr) + Math.cos(lr) * Math.cos(dr) * Math.cos(hr2)) * 180 / Math.PI;
-  const az = (Math.atan2(Math.sin(hr2), Math.cos(hr2) * Math.sin(lr) - Math.tan(dr) * Math.cos(lr)) * 180 / Math.PI + 180) % 360;
-  return { alt: Math.max(0, alt), az };
-}
-function updateSun() {
-  const mo = +document.getElementById('sun-month').value, day = +document.getElementById('sun-day').value || 15, hr = +document.getElementById('sun-hour').value;
-  document.getElementById('sun-hour-val').textContent = String(hr).padStart(2, '0') + ':00';
-  const s = calcSun(mo, day, hr, SITE.lat);
-  document.getElementById('sun-az').textContent = Math.round(s.az) + '°';
-  document.getElementById('sun-alt').textContent = Math.round(s.alt) + '°';
-  if (map) map.setLight({ anchor: 'map', color: '#ffffff', intensity: s.alt > 0 ? 0.3 + s.alt / 90 * 0.5 : 0.05, position: [1.5, s.az, Math.max(5, s.alt)] });
-}
-document.getElementById('sun-month').onchange = updateSun;
-document.getElementById('sun-day').onchange = updateSun;
-document.getElementById('sun-hour').oninput = updateSun;
+/* ═══ MAP ═══ */
+let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
+let layerState={buildings:true,transit:true,grid:true,glb:true,scanlines:true,'site-marker':true};
+let glbCustomLayer=null;
 
-/* ════════════════════════════════════════════════════════════
-   THREE.JS CUSTOM LAYER — GLB + TRANSIT IN SAME SCENE
-   
-   This is the PROVEN pattern from your working code.
-   Everything renders inside one custom layer's Three.js scene.
-   ════════════════════════════════════════════════════════════ */
-function addCustom3DLayer() {
+async function initMap(){
+  try{
+    const res=await fetch(`${VERCEL_API}/api/get-style`);if(!res.ok)throw new Error(`API ${res.status}`);
+    let style=await res.json();style=cleanStyle(style);
+    map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:75});
+    map.on('load',()=>{
+      const src=Object.keys(map.getStyle().sources).find(k=>map.getStyle().sources[k].type==='vector')||'openmaptiles';
+      // Grid
+      const gf={type:'FeatureCollection',features:[]};const gs=PARAMS.gridSize,gc=PARAMS.gridCount;
+      for(let i=-gc;i<=gc;i++){const o=i*gs/gc;gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs+o,SITE.lat-gs],[SITE.lng-gs+o,SITE.lat+gs]]}});gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs,SITE.lat-gs+o],[SITE.lng+gs,SITE.lat-gs+o]]}});}
+      map.addSource('grid-src',{type:'geojson',data:gf});
+      map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
+      // Buildings
+      map.addLayer({id:'3d-buildings',source:src,'source-layer':'building',type:'fill-extrusion',minzoom:13,paint:{'fill-extrusion-color':PARAMS.buildingColor,'fill-extrusion-height':['get','render_height'],'fill-extrusion-base':['get','render_min_height'],'fill-extrusion-opacity':PARAMS.buildingOpacity}});
+      map.addLayer({id:'3d-buildings-outline',source:src,'source-layer':'building',type:'line',minzoom:14,paint:{'line-color':'rgba(255,255,255,0.15)','line-width':0.5}});
+      // Fog
+      map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
+      addSiteMarker();updateSun();
+      loadAllGLBs();initTransit();startHUD();
+    });
+    map.on('move',updateMapHUD);
+  }catch(err){console.error(err);document.getElementById('error-msg').textContent='MAP LOAD: '+err.message;document.getElementById('error-msg').style.display='block';}
+}
+
+function addSiteMarker(){
+  const el=document.createElement('div');el.id='site-marker-el';
+  el.innerHTML='<div style="position:relative;width:20px;height:20px"><div style="position:absolute;inset:0;border:1px solid rgba(255,255,255,.4);border-radius:50%;animation:pulse-ring 2.5s ease infinite"></div><div style="position:absolute;top:50%;left:50%;width:4px;height:4px;background:rgba(255,255,255,.75);border-radius:50%;transform:translate(-50%,-50%)"></div></div><div style="font-size:7px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-top:3px;text-align:center;white-space:nowrap">PROJECT SITE</div>';
+  el.style.cssText='pointer-events:none';
+  new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([SITE.lng,SITE.lat]).addTo(map);
+}
+
+/* ═══ GLB LOADER — ALL FILES VIA CUSTOM LAYER ═══ */
+function loadAllGLBs(){
   const mc = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
   const mScale = mc.meterInMercatorCoordinateUnits();
 
-  /* ── Transit engine (runs in Three.js world coords, NOT lat/lon) ── */
-  const TX_ORIGIN = { lat: GLB_ORIGIN.lat, lon: GLB_ORIGIN.lng };
-  const DEG_LAT_M = 111320;
-  const DEG_LON_M = 111320 * Math.cos(TX_ORIGIN.lat * Math.PI / 180);
-
-  // Convert geo coords to Three.js local meters (same space as GLBs)
-  function geoToLocal(lat, lon, altMeters) {
-    const x = (lon - TX_ORIGIN.lon) * DEG_LON_M;
-    const z = -(lat - TX_ORIGIN.lat) * DEG_LAT_M;
-    return new THREE.Vector3(x, altMeters || 0, z);
-  }
-
-  function easeIO(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
-
-  const SIM_ROUTES = [
-    { id: 'f_weehawken', type: 'ferry', speedKmh: 35, alt: 0, fleet: 2, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.7625, lon: -74.008 }, { lat: 40.768, lon: -74.0095 }, { lat: 40.776, lon: -74.012 }] },
-    { id: 'f_hoboken14', type: 'ferry', speedKmh: 35, alt: 0, fleet: 2, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.76, lon: -74.009 }, { lat: 40.755, lon: -74.015 }, { lat: 40.752, lon: -74.022 }] },
-    { id: 'f_hobokennjt', type: 'ferry', speedKmh: 35, alt: 0, fleet: 3, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.755, lon: -74.009 }, { lat: 40.745, lon: -74.014 }, { lat: 40.738, lon: -74.022 }, { lat: 40.735, lon: -74.027 }] },
-    { id: 'f_stgeorge', type: 'ferry', speedKmh: 40, alt: 0, fleet: 3, path: [{ lat: 40.7618, lon: -74.0055 }, { lat: 40.75, lon: -74.011 }, { lat: 40.735, lon: -74.016 }, { lat: 40.705, lon: -74.021 }, { lat: 40.643, lon: -74.073 }] },
-    { id: 's_123', type: 'subway', speedKmh: 45, alt: -20, fleet: 4, path: [{ lat: 40.7656, lon: -73.9804 }, { lat: 40.738, lon: -73.9996 }] },
-    { id: 's_ACE', type: 'subway', speedKmh: 50, alt: -25, fleet: 5, path: [{ lat: 40.7668, lon: -73.9828 }, { lat: 40.74, lon: -74.0018 }] },
-    { id: 's_NQRW', type: 'subway', speedKmh: 45, alt: -15, fleet: 4, path: [{ lat: 40.7656, lon: -73.9804 }, { lat: 40.7559, lon: -73.9866 }, { lat: 40.7497, lon: -73.9878 }, { lat: 40.7354, lon: -73.9904 }] },
-    { id: 's_7', type: 'subway', speedKmh: 45, alt: -35, fleet: 3, path: [{ lat: 40.7516, lon: -73.9765 }, { lat: 40.7573, lon: -73.9897 }, { lat: 40.7568, lon: -73.9965 }, { lat: 40.7546, lon: -74.0021 }] },
-    { id: 's_L', type: 'subway', speedKmh: 45, alt: -20, fleet: 3, path: [{ lat: 40.74, lon: -74.0018 }, { lat: 40.7317, lon: -73.9818 }] },
-    { id: 'b_M34', type: 'bus', speedKmh: 20, alt: 2, fleet: 4, path: [{ lat: 40.7566, lon: -74.0068 }, { lat: 40.7436, lon: -73.9734 }] },
-    { id: 'b_M42', type: 'bus', speedKmh: 15, alt: 2, fleet: 4, path: [{ lat: 40.7618, lon: -74.0001 }, { lat: 40.7486, lon: -73.9675 }] },
-    { id: 'b_M11', type: 'bus', speedKmh: 22, alt: 2, fleet: 4, path: [{ lat: 40.7681, lon: -73.9855 }, { lat: 40.7415, lon: -74.0047 }] },
-  ];
-
-  const DWELL = 15000, TERM = 40000;
-  // Build schedules using local Three.js coordinates
-  SIM_ROUTES.forEach(route => {
-    route.schedule = []; let t = 0;
-    function buildDir(path) {
-      for (let i = 0; i < path.length - 1; i++) {
-        const p1 = geoToLocal(path[i].lat, path[i].lon, route.alt);
-        const p2 = geoToLocal(path[i + 1].lat, path[i + 1].lon, route.alt);
-        const distKm = p1.distanceTo(p2) / 1000;
-        const dx = p2.x - p1.x, dz = p2.z - p1.z;
-        let heading = Math.atan2(dx, -dz) * 180 / Math.PI;
-        if (heading < 0) heading += 360;
-        const dur = (distKm / route.speedKmh) * 3600000;
-        route.schedule.push({ type: 'move', p1, p2, heading, t0: t, t1: t + dur }); t += dur;
-        const dw = i === path.length - 2 ? TERM : DWELL;
-        route.schedule.push({ type: 'stop', pos: p2, heading, t0: t, t1: t + dw }); t += dw;
-      }
-    }
-    buildDir(route.path);
-    buildDir([...route.path].reverse());
-    route.totalLoop = t;
-  });
-
-  // Transit meshes array — populated in onAdd
-  const transitEntities = [];
-
-  const customLayer = {
-    id: 'custom-3d', type: 'custom', renderingMode: '3d',
-
-    onAdd: function(mapInst, gl) {
+  glbCustomLayer = {
+    id: 'glb-models', type: 'custom', renderingMode: '3d',
+    onAdd(m, gl){
       this.camera = new THREE.Camera();
       this.scene = new THREE.Scene();
-      this.scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-      const dl = new THREE.DirectionalLight(0xffffff, 0.7);
+      this.scene.add(new THREE.AmbientLight(0xffffff, PARAMS.ambientIntensity));
+      const dl = new THREE.DirectionalLight(0xffffff, PARAMS.dirLightIntensity);
       dl.position.set(0, -70, 100);
       this.scene.add(dl);
-
-      this.renderer = new THREE.WebGLRenderer({ canvas: mapInst.getCanvas(), context: gl, antialias: true });
+      this.renderer = new THREE.WebGLRenderer({
+        canvas: m.getCanvas(),
+        context: gl,
+        antialias: true
+      });
       this.renderer.autoClear = false;
-
-      // ── Load ALL GLBs ──
-      const loader = new THREE.GLTFLoader();
-      const scene = this.scene;
-      FILES.forEach(file => {
-        loader.load(REPO + file, function(gltf) {
-          gltf.scene.traverse(function(ch) {
-            if (ch.isMesh) {
-              ch.material = new THREE.MeshStandardMaterial({
-                color: 0xffffff, transparent: true, opacity: 0.6,
-                roughness: 0.5, metalness: 0.1, side: THREE.DoubleSide
-              });
-            }
-          });
-          scene.add(gltf.scene);
-          glbLoaded++;
-          document.getElementById('v-glb').textContent = glbLoaded + '/' + FILES.length;
-        }, undefined, function(e) { console.error(file, e); });
-      });
-
-      // ── Create transit meshes ──
-      const colors = { ferry: 0xcc88ff, subway: 0xaa88ff, bus: 0x88ffaa };
-      SIM_ROUTES.forEach(route => {
-        for (let j = 0; j < route.fleet; j++) {
-          const geo = route.type === 'ferry'
-            ? new THREE.BoxGeometry(12, 5, 25)
-            : route.type === 'subway'
-            ? new THREE.BoxGeometry(6, 6, 40)
-            : new THREE.BoxGeometry(5, 7, 15);
-          const mat = new THREE.MeshBasicMaterial({ color: colors[route.type], transparent: true, opacity: 0.8 });
-          const mesh = new THREE.Mesh(geo, mat);
-          scene.add(mesh);
-          transitEntities.push({ mesh, route, idx: j, heading: 0 });
-        }
-      });
     },
-
-    render: function(gl, matrix) {
-      // ── Update transit positions ──
-      const now = Date.now();
-      let counts = { ferry: 0, transit: 0 };
-      transitEntities.forEach(ent => {
-        const route = ent.route;
-        if (route.type === 'ferry') counts.ferry++; else counts.transit++;
-        const cycle = (now + (route.totalLoop / route.fleet) * ent.idx) % route.totalLoop;
-        for (const ev of route.schedule) {
-          if (cycle >= ev.t0 && cycle < ev.t1) {
-            if (ev.type === 'move') {
-              const t = easeIO((cycle - ev.t0) / (ev.t1 - ev.t0));
-              ent.mesh.position.lerpVectors(ev.p1, ev.p2, t);
-            } else {
-              ent.mesh.position.copy(ev.pos);
-            }
-            ent.mesh.rotation.y = -ev.heading * Math.PI / 180;
-            break;
-          }
-        }
-      });
-      document.getElementById('ct-ferry').textContent = counts.ferry;
-      document.getElementById('ct-transit').textContent = counts.transit;
-
-      // ── Render ──
+    render(gl, matrix){
+      // Correct matrix order: MapProjection * (Translation * Scale * Rotation)
       const m = new THREE.Matrix4().fromArray(matrix);
       const l = new THREE.Matrix4()
         .makeTranslation(mc.x, mc.y, mc.z)
@@ -335,144 +412,219 @@ function addCustom3DLayer() {
       map.triggerRepaint();
     }
   };
+  map.addLayer(glbCustomLayer);
 
-  map.addLayer(customLayer);
-
-  // Flight API polling
-  async function fetchFlights() {
-    const el = document.getElementById('ct-api');
-    const urls = [
-      `https://api.airplanes.live/v2/point/${TX_ORIGIN.lat}/${TX_ORIGIN.lon}/4`,
-      `https://api.adsb.lol/v2/point/${TX_ORIGIN.lat}/${TX_ORIGIN.lon}/4`
-    ];
-    let data = null;
-    for (const url of urls) { try { const r = await fetch(url); if (r.ok) { data = await r.json(); break; } } catch (e) {} }
-    if (!data || !data.ac) { el.textContent = 'OFFLINE'; return; }
-    el.textContent = 'CONNECTED'; el.style.color = 'var(--t1)';
-    let planes = 0, helis = 0;
-    data.ac.forEach(ac => {
-      if (!ac.lat || !ac.lon) return;
-      const isHeli = (ac.category === 'A7' || ac.category === 'A07');
-      if (isHeli) helis++; else planes++;
+  // Load each GLB using GLTFLoader.load (handles binary correctly)
+  const loader = new THREE.GLTFLoader();
+  GLB_FILES.forEach(filename => {
+    loader.load(REPO_BASE + filename, (gltf) => {
+      const model = gltf.scene;
+      model.traverse(ch => {
+        if (ch.isMesh) {
+          ch.material = new THREE.MeshStandardMaterial({
+            color: PARAMS.glbColor,
+            roughness: PARAMS.glbRoughness,
+            metalness: PARAMS.glbMetalness,
+            transparent: true,
+            opacity: PARAMS.glbOpacity,
+            side: THREE.DoubleSide
+          });
+        }
+      });
+      glbCustomLayer.scene.add(model);
+      glbLoaded++;
+      document.getElementById('v-glb').textContent = glbLoaded + '/' + GLB_FILES.length;
+      document.getElementById('glb-status').textContent = '> ' + filename + ' loaded';
+    }, undefined, (e) => {
+      console.error(filename, e);
+      document.getElementById('glb-status').textContent = '> ' + filename + ': error';
     });
-    document.getElementById('ct-plane').textContent = planes;
-    document.getElementById('ct-heli').textContent = helis;
-  }
-  fetchFlights();
-  setInterval(fetchFlights, 6000);
-
-  // Store reference for layer toggle
-  window._customLayer = customLayer;
+  });
 }
 
-/* ════ MAP INIT ════ */
-async function initMap() {
-  const res = await fetch('https://2gbxenvironment-2.vercel.app/api/get-style');
-  let style = await res.json();
-  style = cleanStyle(style);
+/* Manual upload */
+function setupGLB(){
+  const z=document.getElementById('glb-zone'),inp=document.getElementById('glb-input'),st=document.getElementById('glb-status');
+  z.onclick=()=>inp.click();z.ondragover=e=>{e.preventDefault()};
+  z.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files.length)doUp(e.dataTransfer.files[0])};
+  inp.onchange=e=>{if(e.target.files.length)doUp(e.target.files[0])};
+  function doUp(f){st.textContent='> LOADING '+f.name;
+    const r=new FileReader();r.onload=function(e){new THREE.GLTFLoader().parse(e.target.result,'',gltf=>{
+      const m=gltf.scene;m.traverse(ch=>{if(ch.isMesh)ch.material=new THREE.MeshStandardMaterial({color:PARAMS.glbColor,roughness:PARAMS.glbRoughness,metalness:PARAMS.glbMetalness,transparent:true,opacity:PARAMS.glbOpacity,side:THREE.DoubleSide})});
+      if(glbCustomLayer&&glbCustomLayer.scene)glbCustomLayer.scene.add(m);
+      st.textContent='> LOADED '+f.name;z.textContent=f.name.toUpperCase();
+    })};r.readAsArrayBuffer(f);}
+}
 
-  map = new maplibregl.Map({
-    container: 'map', style,
-    center: [SITE.lng, SITE.lat],
-    zoom: 16.5, pitch: 60, bearing: -18,
-    antialias: true, maxPitch: 75
-  });
+/* ═══ TRANSIT — EXACT LOGIC FROM YOUR WORKING HTML ═══ */
+const TX={LAT:40.7527,LON:-74.0017,RADIUS_NM:PARAMS.flightApiRadius};
+const KM_LAT=111.32,KM_LON=111.32*Math.cos(TX.LAT*Math.PI/180);
+let transitVisible=true;
+const simMarkers=new Map(),flightMarkers=new Map();
 
-  map.on('load', function() {
-    const src = Object.keys(map.getStyle().sources).find(k => map.getStyle().sources[k].type === 'vector') || 'openmaptiles';
+const SIM_ROUTES=[
+  {id:'f_weehawken',type:'ferry',name:'NYWW Weehawken',speed:35,alt:0,fleet:2,path:[{lat:40.7618,lon:-74.0055},{lat:40.7625,lon:-74.008},{lat:40.768,lon:-74.0095},{lat:40.776,lon:-74.012}]},
+  {id:'f_hoboken14',type:'ferry',name:'NYWW Hoboken 14th',speed:35,alt:0,fleet:2,path:[{lat:40.7618,lon:-74.0055},{lat:40.76,lon:-74.009},{lat:40.755,lon:-74.015},{lat:40.752,lon:-74.022}]},
+  {id:'f_hobokennjt',type:'ferry',name:'NYWW Hoboken NJT',speed:35,alt:0,fleet:3,path:[{lat:40.7618,lon:-74.0055},{lat:40.755,lon:-74.009},{lat:40.745,lon:-74.014},{lat:40.738,lon:-74.022},{lat:40.735,lon:-74.027}]},
+  {id:'f_paulus',type:'ferry',name:'NYWW Paulus Hook',speed:35,alt:0,fleet:3,path:[{lat:40.7618,lon:-74.0055},{lat:40.75,lon:-74.011},{lat:40.735,lon:-74.016},{lat:40.72,lon:-74.023},{lat:40.711,lon:-74.033}]},
+  {id:'f_stgeorge',type:'ferry',name:'NYC Ferry StGeorge',speed:40,alt:0,fleet:3,path:[{lat:40.7618,lon:-74.0055},{lat:40.75,lon:-74.011},{lat:40.735,lon:-74.016},{lat:40.72,lon:-74.02},{lat:40.705,lon:-74.021},{lat:40.695,lon:-74.022},{lat:40.67,lon:-74.04},{lat:40.643,lon:-74.073}]},
+  {id:'f_astoria',type:'ferry',name:'NYC Ferry Astoria',speed:35,alt:0,fleet:3,path:[{lat:40.7035,lon:-74.005},{lat:40.702,lon:-74.002},{lat:40.7065,lon:-73.997},{lat:40.7095,lon:-73.989},{lat:40.712,lon:-73.978},{lat:40.7135,lon:-73.971},{lat:40.74,lon:-73.961},{lat:40.7435,lon:-73.968},{lat:40.755,lon:-73.953},{lat:40.77,lon:-73.935}]},
+  {id:'f_eastriver',type:'ferry',name:'NYC Ferry East River',speed:30,alt:0,fleet:3,path:[{lat:40.7035,lon:-74.005},{lat:40.702,lon:-74.002},{lat:40.7065,lon:-73.997},{lat:40.7095,lon:-73.989},{lat:40.712,lon:-73.978},{lat:40.7135,lon:-73.971},{lat:40.74,lon:-73.961},{lat:40.7435,lon:-73.968}]},
+  {id:'s_1',type:'subway',name:'1 Train',speed:45,alt:-60,fleet:3,path:[{lat:40.7656,lon:-73.9804},{lat:40.738,lon:-73.9996}]},
+  {id:'s_2',type:'subway',name:'2 Train',speed:55,alt:-60,fleet:3,path:[{lat:40.7656,lon:-73.9804},{lat:40.738,lon:-73.9996}]},
+  {id:'s_3',type:'subway',name:'3 Train',speed:55,alt:-60,fleet:2,path:[{lat:40.7656,lon:-73.9804},{lat:40.738,lon:-73.9996}]},
+  {id:'s_A',type:'subway',name:'A Train',speed:55,alt:-80,fleet:3,path:[{lat:40.7668,lon:-73.9828},{lat:40.74,lon:-74.0018}]},
+  {id:'s_C',type:'subway',name:'C Train',speed:45,alt:-80,fleet:2,path:[{lat:40.7668,lon:-73.9828},{lat:40.74,lon:-74.0018}]},
+  {id:'s_E',type:'subway',name:'E Train',speed:45,alt:-80,fleet:3,path:[{lat:40.7668,lon:-73.9828},{lat:40.74,lon:-74.0018}]},
+  {id:'s_N',type:'subway',name:'N Train',speed:50,alt:-50,fleet:2,path:[{lat:40.7656,lon:-73.9804},{lat:40.7559,lon:-73.9866},{lat:40.7497,lon:-73.9878},{lat:40.7354,lon:-73.9904}]},
+  {id:'s_Q',type:'subway',name:'Q Train',speed:50,alt:-50,fleet:2,path:[{lat:40.7656,lon:-73.9804},{lat:40.7559,lon:-73.9866},{lat:40.7497,lon:-73.9878},{lat:40.7354,lon:-73.9904}]},
+  {id:'s_R',type:'subway',name:'R Train',speed:40,alt:-50,fleet:2,path:[{lat:40.7656,lon:-73.9804},{lat:40.7559,lon:-73.9866},{lat:40.7497,lon:-73.9878},{lat:40.7354,lon:-73.9904}]},
+  {id:'s_W',type:'subway',name:'W Train',speed:40,alt:-50,fleet:2,path:[{lat:40.7656,lon:-73.9804},{lat:40.7559,lon:-73.9866},{lat:40.7497,lon:-73.9878},{lat:40.7354,lon:-73.9904}]},
+  {id:'s_7',type:'subway',name:'7 Train',speed:45,alt:-100,fleet:3,path:[{lat:40.7516,lon:-73.9765},{lat:40.7573,lon:-73.9897},{lat:40.7568,lon:-73.9965},{lat:40.7546,lon:-74.0021}]},
+  {id:'s_L',type:'subway',name:'L Train',speed:45,alt:-70,fleet:3,path:[{lat:40.74,lon:-74.0018},{lat:40.7317,lon:-73.9818}]},
+  {id:'b_M34',type:'bus',name:'M34 SBS',speed:20,alt:0,fleet:4,path:[{lat:40.7566,lon:-74.0068},{lat:40.7436,lon:-73.9734}]},
+  {id:'b_M42',type:'bus',name:'M42 Local',speed:15,alt:0,fleet:4,path:[{lat:40.7618,lon:-74.0001},{lat:40.7486,lon:-73.9675}]},
+  {id:'b_M11',type:'bus',name:'M11 Local',speed:22,alt:0,fleet:4,path:[{lat:40.7681,lon:-73.9855},{lat:40.7415,lon:-74.0047}]},
+  {id:'b_M12',type:'bus',name:'M12 Local',speed:25,alt:0,fleet:4,path:[{lat:40.7698,lon:-73.989},{lat:40.7428,lon:-74.0084}]},
+];
 
-    // White buildings
-    map.addLayer({
-      id: '3d-buildings', source: src, 'source-layer': 'building',
-      type: 'fill-extrusion', minzoom: 13,
-      paint: {
-        'fill-extrusion-color': '#ffffff',
-        'fill-extrusion-height': ['get', 'render_height'],
-        'fill-extrusion-base': ['get', 'render_min_height'],
-        'fill-extrusion-opacity': 0.35
-      }
-    });
+const DWELL=15000,TERM=40000;
 
-    // Building outline
-    map.addLayer({
-      id: '3d-buildings-outline', source: src, 'source-layer': 'building',
-      type: 'line', minzoom: 14,
-      paint: { 'line-color': 'rgba(255,255,255,0.15)', 'line-width': 0.5 }
-    });
+SIM_ROUTES.forEach(route=>{
+  route.schedule=[];let t=0;
+  function build(path){for(let i=0;i<path.length-1;i++){
+    const p1=path[i],p2=path[i+1];
+    const dLat=(p2.lat-p1.lat)*KM_LAT*1000,dLon=(p2.lon-p1.lon)*KM_LON*1000;
+    const distKm=Math.sqrt(dLat*dLat+dLon*dLon)/1000;
+    const heading=(Math.atan2(p2.lon-p1.lon,p2.lat-p1.lat)*180/Math.PI+360)%360;
+    const dur=(distKm/route.speed)*3600000;
+    route.schedule.push({type:'move',p1,p2,heading,t0:t,t1:t+dur});t+=dur;
+    route.schedule.push({type:'stop',pos:p2,heading,t0:t,t1:t+(i===path.length-2?TERM:DWELL)});t+=(i===path.length-2?TERM:DWELL);
+  }}
+  build(route.path);build([...route.path].reverse());
+  route.totalLoop=t;
+});
 
-    // Grid
-    const gf = { type: 'FeatureCollection', features: [] };
-    for (let i = -30; i <= 30; i++) {
-      const o = i * 0.004 / 30;
-      gf.features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[SITE.lng - 0.004 + o, SITE.lat - 0.004], [SITE.lng - 0.004 + o, SITE.lat + 0.004]] } });
-      gf.features.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: [[SITE.lng - 0.004, SITE.lat - 0.004 + o], [SITE.lng + 0.004, SITE.lat - 0.004 + o]] } });
+function easeIO(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
+
+function initTransit(){
+  const colors = { ferry: '#cc88ff', subway: '#aa88ff', bus: '#88ffaa' };
+  const sizes = { ferry: 8, subway: 6, bus: 5 };
+
+  SIM_ROUTES.forEach(route => {
+    for(let j = 0; j < route.fleet; j++){
+      const id = `${route.id}_v${j}`;
+      const el = document.createElement('div');
+      const sz = Math.round(sizes[route.type] * PARAMS.transitMarkerScale);
+      const c = colors[route.type];
+
+      el.innerHTML = `<div style="width:${sz}px;height:${sz}px;background:${c};border-radius:50%;box-shadow:0 0 8px ${c};border:1px solid rgba(255,255,255,0.3)"></div>`;
+      el.style.cssText = 'pointer-events:none;';
+
+      const marker = new maplibregl.Marker({element: el, anchor: 'center'})
+        .setLngLat([SITE.lng, SITE.lat])
+        .addTo(map);
+
+      simMarkers.set(id, {marker, route, idx: j, type: route.type});
     }
-    map.addSource('grid', { type: 'geojson', data: gf });
-    map.addLayer({ id: 'ground-grid', source: 'grid', type: 'line', paint: { 'line-color': 'rgba(255,255,255,0.08)', 'line-width': 0.5 } });
-
-    map.setFog({ range: [0.5, 8], color: '#000', 'horizon-blend': 0.03, 'high-color': '#000', 'space-color': '#000', 'star-intensity': 0 });
-
-    // Site marker
-    const el = document.createElement('div');
-    el.innerHTML = '<div style="position:relative;width:20px;height:20px"><div style="position:absolute;inset:0;border:1px solid rgba(255,255,255,.4);border-radius:50%;animation:pulse-ring 2.5s ease infinite"></div><div style="position:absolute;top:50%;left:50%;width:4px;height:4px;background:rgba(255,255,255,.75);border-radius:50%;transform:translate(-50%,-50%)"></div></div>';
-    el.style.cssText = 'pointer-events:none';
-    new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([SITE.lng, SITE.lat]).addTo(map);
-
-    updateSun();
-    addCustom3DLayer();
-    startHUD();
   });
-
-  map.on('move', updateHUD);
+  fetchFlights();setInterval(fetchFlights,PARAMS.flightApiInterval);
+  setInterval(updateSim,50);
 }
 
-/* ════ LAYERS ════ */
-function toggleLayer(el) {
-  el.classList.toggle('on'); const on = el.classList.contains('on');
-  const l = el.dataset.layer;
-  if (l === 'buildings' && map) {
-    ['3d-buildings', '3d-buildings-outline'].forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
+async function fetchFlights(){
+  const el=document.getElementById('ct-api');
+  const urls=[`https://api.airplanes.live/v2/point/${TX.LAT}/${TX.LON}/${TX.RADIUS_NM}`,`https://api.adsb.lol/v2/point/${TX.LAT}/${TX.LON}/${TX.RADIUS_NM}`];
+  let data=null;
+  for(const url of urls){try{const r=await fetch(url);if(r.ok){data=await r.json();break}}catch(e){}}
+  if(!data||!data.ac){el.textContent='OFFLINE';el.style.color='var(--t4)';return}
+  el.textContent='CONNECTED';el.style.color='var(--t1)';
+  const seen=new Set();
+  data.ac.forEach(ac=>{
+    if(!ac.lat||!ac.lon)return;seen.add(ac.hex);
+    const isHeli=(ac.category==='A7'||ac.category==='A07');
+    if(!flightMarkers.has(ac.hex)){
+      const d=document.createElement('div');const cv=isHeli?'#ffcc66':'#66ddff';const sz=isHeli?6:7;
+      d.innerHTML=`<div style="width:${sz}px;height:${sz}px;background:${cv};border-radius:${isHeli?'50%':'1px'};box-shadow:0 0 8px ${cv};border:1px solid rgba(255,255,255,0.3)"></div>`;
+      d.style.cssText='pointer-events:none;';
+      const marker=new maplibregl.Marker({element:d,anchor:'center'}).setLngLat([ac.lon,ac.lat]).addTo(map);
+      flightMarkers.set(ac.hex,{marker,type:isHeli?'heli':'plane'});
+    }else{flightMarkers.get(ac.hex).marker.setLngLat([ac.lon,ac.lat])}
+  });
+  for(const[id,f]of flightMarkers){if(!seen.has(id)){f.marker.remove();flightMarkers.delete(id)}}
+}
+
+function updateSim(){
+  const now=Date.now();
+  let ct={plane:0,heli:0,ferry:0,subway:0,bus:0};
+  flightMarkers.forEach(f=>{if(f.type==='heli')ct.heli++;else ct.plane++});
+
+  for(const[id,obj]of simMarkers){
+    const route=obj.route;
+    ct[route.type]++;
+    const cycle=(now+(route.totalLoop/route.fleet)*obj.idx)%route.totalLoop;
+    let pos=null;
+    for(const ev of route.schedule){
+      if(cycle>=ev.t0&&cycle<ev.t1){
+        if(ev.type==='move'){const t=easeIO((cycle-ev.t0)/(ev.t1-ev.t0));pos={lat:ev.p1.lat+(ev.p2.lat-ev.p1.lat)*t,lon:ev.p1.lon+(ev.p2.lon-ev.p1.lon)*t}}
+        else pos={lat:ev.pos.lat,lon:ev.pos.lon};break;
+      }
+    }
+    if(pos){obj.marker.setLngLat([pos.lon,pos.lat]);obj.marker.getElement().style.display=transitVisible?'block':'none'}
   }
-  if (l === 'glb' && window._customLayer && window._customLayer.scene) {
-    window._customLayer.scene.visible = on;
-  }
-  if (l === 'scanlines') document.getElementById('scanlines').style.display = on ? 'block' : 'none';
+  flightMarkers.forEach(f=>{f.marker.getElement().style.display=transitVisible?'block':'none'});
+  document.getElementById('ct-plane').textContent=ct.plane;document.getElementById('ct-heli').textContent=ct.heli;
+  document.getElementById('ct-ferry').textContent=ct.ferry;document.getElementById('ct-subway').textContent=ct.subway;document.getElementById('ct-bus').textContent=ct.bus;
 }
 
-function flyTo(view, btn) {
-  document.querySelectorAll('.vb').forEach(b => b.classList.remove('on'));
-  if (btn) btn.classList.add('on');
-  const views = {
-    persp: { center: [SITE.lng, SITE.lat], zoom: 16.5, pitch: 60, bearing: -18 },
-    top: { center: [SITE.lng, SITE.lat], zoom: 17, pitch: 0, bearing: 0 },
-    site: { center: [SITE.lng, SITE.lat], zoom: 18, pitch: 55, bearing: 30 }
-  };
-  if (views[view] && map) map.flyTo({ ...views[view], duration: 2000, essential: true });
+/* ═══ LAYERS ═══ */
+function toggleLayer(el){
+  el.classList.toggle('on');const l=el.dataset.layer;layerState[l]=!layerState[l];
+  if(l==='buildings'&&map){const v=layerState[l]?'visible':'none';['3d-buildings','3d-buildings-outline'].forEach(i=>{if(map.getLayer(i))map.setLayoutProperty(i,'visibility',v)})}
+  if(l==='transit'){transitVisible=layerState[l];simMarkers.forEach(o=>o.marker.getElement().style.display=transitVisible?'block':'none');flightMarkers.forEach(f=>f.marker.getElement().style.display=transitVisible?'block':'none')}
+  if(l==='grid'&&map&&map.getLayer('ground-grid'))map.setLayoutProperty('ground-grid','visibility',layerState[l]?'visible':'none');
+  if(l==='glb'&&map&&map.getLayer('glb-models'))map.setLayoutProperty('glb-models','visibility',layerState[l]?'visible':'none');
+  if(l==='scanlines')document.getElementById('scanlines').style.display=layerState[l]?'block':'none';
+  if(l==='site-marker'){const m=document.getElementById('site-marker-el');if(m)m.style.display=layerState[l]?'block':'none'}
 }
 
-/* ════ HUD ════ */
-function updateHUD() {
-  if (!map) return;
-  const c = map.getCenter();
-  document.getElementById('c-lat').textContent = c.lat.toFixed(4);
-  document.getElementById('c-lon').textContent = c.lng.toFixed(4);
-  document.getElementById('v-zoom').textContent = map.getZoom().toFixed(1);
-  document.getElementById('v-pitch').textContent = Math.round(map.getPitch()) + '°';
-}
+function setView(type,el){autoOrbit=false;document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));if(el)el.classList.add('on');
+const v={perspective:{center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18},top:{center:[SITE.lng,SITE.lat],zoom:17,pitch:0,bearing:0},site:{center:[SITE.lng,SITE.lat],zoom:18,pitch:55,bearing:30}};
+if(type==='orbit'){autoOrbit=true;orbitStart=performance.now();return}
+if(v[type]&&map)map.flyTo({...v[type],duration:2000,essential:true})}
+function resetCamera(){setView('perspective',document.querySelector('[data-view="perspective"]'))}
+function doOrbit(){if(!autoOrbit||!map)return;map.setBearing(-18+(performance.now()-orbitStart)/1000*8)}
 
-function startHUD() {
-  updateHUD();
-  setInterval(() => {
-    const n = new Date();
-    document.getElementById('clock').textContent = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0') + ':' + String(n.getSeconds()).padStart(2, '0');
-  }, 1000);
-}
+/* ═══ HUD ═══ */
+function updateMapHUD(){if(!map)return;const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
+document.getElementById('c-lat').textContent=c.lat.toFixed(4);document.getElementById('c-lon').textContent=c.lng.toFixed(4);document.getElementById('c-zoom').textContent=z.toFixed(1);
+document.getElementById('v-zoom').textContent=z.toFixed(1);document.getElementById('v-pitch').textContent=p.toFixed(0)+'°';document.getElementById('v-bearing').textContent=b.toFixed(0)+'°';
+document.getElementById('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
 
-/* ════ MAIN ════ */
-async function main() {
-  await boot();
-  await initMap();
-}
+function drawHeading(b){const cv=document.getElementById('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
+const dirs=['N','NE','E','SE','S','SW','W','NW'];for(let i=-7;i<=7;i++){const deg=(Math.round(b/5)*5+i*5)%360,x=150+i*18;if(x<10||x>290)continue;const a=((deg%360)+360)%360;
+if(a%45===0){cx.fillStyle='rgba(255,255,255,.4)';cx.fillText(dirs[Math.round(a/45)%8]||'',x,7);cx.beginPath();cx.moveTo(x,11);cx.lineTo(x,17);cx.stroke()}
+else if(a%10===0){cx.fillStyle='rgba(255,255,255,.15)';cx.fillText(a,x,7);cx.beginPath();cx.moveTo(x,13);cx.lineTo(x,17);cx.stroke()}else{cx.beginPath();cx.moveTo(x,15);cx.lineTo(x,17);cx.stroke()}}
+cx.strokeStyle='rgba(255,255,255,.35)';cx.beginPath();cx.moveTo(150,0);cx.lineTo(150,18);cx.stroke()}
+
+function drawRadar(t){const cv=document.getElementById('radar-canvas'),cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
+cx.clearRect(0,0,w,h);cx.strokeStyle='rgba(255,255,255,.05)';cx.lineWidth=.5;[.33,.66,1].forEach(s=>{cx.beginPath();cx.arc(mx,my,r*s,0,Math.PI*2);cx.stroke()});
+cx.beginPath();cx.moveTo(mx,my-r);cx.lineTo(mx,my+r);cx.stroke();cx.beginPath();cx.moveTo(mx-r,my);cx.lineTo(mx+r,my);cx.stroke();
+const angle=(t*.5)%(Math.PI*2);for(let i=0;i<=8;i++){cx.strokeStyle=`rgba(255,255,255,${.12-i*.013})`;cx.lineWidth=i===0?.8:.4;const a2=angle-i*.08;cx.beginPath();cx.moveTo(mx,my);cx.lineTo(mx+Math.cos(a2)*r,my+Math.sin(a2)*r);cx.stroke()}}
+
+function updateNM(){const el=document.getElementById('num-matrix');let r='';for(let i=0;i<5;i++){let w='';for(let c=0;c<7;c++)w+=String(Math.floor(Math.random()*999)).padStart(3,'0')+' ';r+=w.trim()+'\n'}el.textContent=r}
+function jit(v,r){return(parseFloat(v)+(Math.random()-.5)*r).toFixed(1)}
+function simC(){setInterval(()=>{document.getElementById('v-temp').textContent=jit(72.4,2)+'°F';document.getElementById('v-hum').textContent=Math.round(58+(Math.random()-.5)*4)+'%';document.getElementById('v-wind').textContent=jit(12.3,3)+' MPH NW';document.getElementById('v-solar').textContent=Math.round(842+(Math.random()-.5)*60)+' W/m²';updateNM()},2000)}
+function initBars(){[18,22,28,35,42,50,55,60,65,72,74,70,65,58,50,42,35,28,22,18,15,12,14,16].forEach(v=>{const b=document.createElement('div');b.className='b'+(v>50?' h':'');b.style.height=(v/74*100)+'%';document.getElementById('temp-bars').appendChild(b)})}
+function tickClock(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0')}
+setInterval(tickClock,1000);tickClock();
+
+let fc=0,lastFT=performance.now();
+function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
+(function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doOrbit();
+fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
+
+async function main(){await bootSeq();await initMap();setupGLB()}
 main();
 </script>
 </body>
