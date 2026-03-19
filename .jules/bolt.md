@@ -1,0 +1,3 @@
+## 2024-05-18 - High-Frequency DOM Caching
+**Learning:** In the Mapbox/Three.js simulation (`index.html`), `document.getElementById` and `.getElement().style.display` were being called inside high-frequency `requestAnimationFrame` and `setInterval` loops (e.g., 50ms intervals). This causes severe layout thrashing and garbage collection spikes.
+**Action:** When working in this codebase, ensure that any element lookups are cached on initialization using a global `DOM` map or within the instance tracking objects (like `simMarkers` caching the `el`). Never repeatedly query the DOM inside an animation loop.

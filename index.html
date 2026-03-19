@@ -237,6 +237,10 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 <div id="error-msg"></div>
 
 <script>
+// ⚡ Bolt Optimization: Cache DOM element lookups to prevent layout thrashing and garbage collection spikes in high-frequency loops.
+const DOM = {};
+const getDOM = id => DOM[id] || (DOM[id] = document.getElementById(id));
+
 /* ══════════════════════════════════════════════
    PARAMETERS — EASY ACCESS SETTINGS
    ══════════════════════════════════════════════ */
@@ -313,16 +317,16 @@ function calcSun(month,day,hour,lat){
   return{alt:Math.max(0,alt),az};
 }
 function updateSun(){
-  const m=+document.getElementById('sun-month').value,d=+document.getElementById('sun-day').value||15,h=+document.getElementById('sun-hour').value;
-  document.getElementById('sun-hour-val').textContent=String(h).padStart(2,'0')+':00';
+  const m=+getDOM('sun-month').value,d=+getDOM('sun-day').value||15,h=+getDOM('sun-hour').value;
+  getDOM('sun-hour-val').textContent=String(h).padStart(2,'0')+':00';
   const s=calcSun(m,d,h,SITE.lat);
-  document.getElementById('sun-az').textContent=Math.round(s.az)+'°';
-  document.getElementById('sun-alt').textContent=Math.round(s.alt)+'°';
+  getDOM('sun-az').textContent=Math.round(s.az)+'°';
+  getDOM('sun-alt').textContent=Math.round(s.alt)+'°';
   if(map)map.setLight({anchor:'map',color:'#ffffff',intensity:s.alt>0?0.3+s.alt/90*0.5:0.05,position:[1.5,s.az,Math.max(5,s.alt)]});
 }
-document.getElementById('sun-month').onchange=updateSun;
-document.getElementById('sun-day').onchange=updateSun;
-document.getElementById('sun-hour').oninput=updateSun;
+getDOM('sun-month').onchange=updateSun;
+getDOM('sun-day').onchange=updateSun;
+getDOM('sun-hour').oninput=updateSun;
 
 /* ═══ STYLE ═══ */
 function cleanStyle(s){
@@ -433,18 +437,18 @@ function loadAllGLBs(){
       });
       glbCustomLayer.scene.add(model);
       glbLoaded++;
-      document.getElementById('v-glb').textContent = glbLoaded + '/' + GLB_FILES.length;
-      document.getElementById('glb-status').textContent = '> ' + filename + ' loaded';
+      getDOM('v-glb').textContent = glbLoaded + '/' + GLB_FILES.length;
+      getDOM('glb-status').textContent = '> ' + filename + ' loaded';
     }, undefined, (e) => {
       console.error(filename, e);
-      document.getElementById('glb-status').textContent = '> ' + filename + ': error';
+      getDOM('glb-status').textContent = '> ' + filename + ': error';
     });
   });
 }
 
 /* Manual upload */
 function setupGLB(){
-  const z=document.getElementById('glb-zone'),inp=document.getElementById('glb-input'),st=document.getElementById('glb-status');
+  const z=getDOM('glb-zone'),inp=getDOM('glb-input'),st=getDOM('glb-status');
   z.onclick=()=>inp.click();z.ondragover=e=>{e.preventDefault()};
   z.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files.length)doUp(e.dataTransfer.files[0])};
   inp.onchange=e=>{if(e.target.files.length)doUp(e.target.files[0])};
@@ -533,7 +537,7 @@ function initTransit(){
 }
 
 async function fetchFlights(){
-  const el=document.getElementById('ct-api');
+  const el=getDOM('ct-api');
   const urls=[`https://api.airplanes.live/v2/point/${TX.LAT}/${TX.LON}/${TX.RADIUS_NM}`,`https://api.adsb.lol/v2/point/${TX.LAT}/${TX.LON}/${TX.RADIUS_NM}`];
   let data=null;
   for(const url of urls){try{const r=await fetch(url);if(r.ok){data=await r.json();break}}catch(e){}}
@@ -547,8 +551,9 @@ async function fetchFlights(){
       const d=document.createElement('div');const cv=isHeli?'#ffcc66':'#66ddff';const sz=isHeli?6:7;
       d.innerHTML=`<div style="width:${sz}px;height:${sz}px;background:${cv};border-radius:${isHeli?'50%':'1px'};box-shadow:0 0 8px ${cv};border:1px solid rgba(255,255,255,0.3)"></div>`;
       d.style.cssText='pointer-events:none;';
+      d.style.display = transitVisible ? 'block' : 'none';
       const marker=new maplibregl.Marker({element:d,anchor:'center'}).setLngLat([ac.lon,ac.lat]).addTo(map);
-      flightMarkers.set(ac.hex,{marker,type:isHeli?'heli':'plane'});
+      flightMarkers.set(ac.hex,{marker,type:isHeli?'heli':'plane',el:d});
     }else{flightMarkers.get(ac.hex).marker.setLngLat([ac.lon,ac.lat])}
   });
   for(const[id,f]of flightMarkers){if(!seen.has(id)){f.marker.remove();flightMarkers.delete(id)}}
@@ -559,6 +564,7 @@ function updateSim(){
   let ct={plane:0,heli:0,ferry:0,subway:0,bus:0};
   flightMarkers.forEach(f=>{if(f.type==='heli')ct.heli++;else ct.plane++});
 
+  // ⚡ Bolt Optimization: style.display manipulation was removed from this 50ms loop since visibility is now handled solely by toggleLayer
   for(const[id,obj]of simMarkers){
     const route=obj.route;
     ct[route.type]++;
@@ -570,11 +576,11 @@ function updateSim(){
         else pos={lat:ev.pos.lat,lon:ev.pos.lon};break;
       }
     }
-    if(pos){obj.marker.setLngLat([pos.lon,pos.lat]);obj.marker.getElement().style.display=transitVisible?'block':'none'}
+    if(pos){obj.marker.setLngLat([pos.lon,pos.lat]);}
   }
-  flightMarkers.forEach(f=>{f.marker.getElement().style.display=transitVisible?'block':'none'});
-  document.getElementById('ct-plane').textContent=ct.plane;document.getElementById('ct-heli').textContent=ct.heli;
-  document.getElementById('ct-ferry').textContent=ct.ferry;document.getElementById('ct-subway').textContent=ct.subway;document.getElementById('ct-bus').textContent=ct.bus;
+
+  getDOM('ct-plane').textContent=ct.plane;getDOM('ct-heli').textContent=ct.heli;
+  getDOM('ct-ferry').textContent=ct.ferry;getDOM('ct-subway').textContent=ct.subway;getDOM('ct-bus').textContent=ct.bus;
 }
 
 /* ═══ LAYERS ═══ */
@@ -584,8 +590,8 @@ function toggleLayer(el){
   if(l==='transit'){transitVisible=layerState[l];simMarkers.forEach(o=>o.marker.getElement().style.display=transitVisible?'block':'none');flightMarkers.forEach(f=>f.marker.getElement().style.display=transitVisible?'block':'none')}
   if(l==='grid'&&map&&map.getLayer('ground-grid'))map.setLayoutProperty('ground-grid','visibility',layerState[l]?'visible':'none');
   if(l==='glb'&&map&&map.getLayer('glb-models'))map.setLayoutProperty('glb-models','visibility',layerState[l]?'visible':'none');
-  if(l==='scanlines')document.getElementById('scanlines').style.display=layerState[l]?'block':'none';
-  if(l==='site-marker'){const m=document.getElementById('site-marker-el');if(m)m.style.display=layerState[l]?'block':'none'}
+  if(l==='scanlines')getDOM('scanlines').style.display=layerState[l]?'block':'none';
+  if(l==='site-marker'){const m=getDOM('site-marker-el');if(m)m.style.display=layerState[l]?'block':'none'}
 }
 
 function setView(type,el){autoOrbit=false;document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));if(el)el.classList.add('on');
@@ -597,32 +603,32 @@ function doOrbit(){if(!autoOrbit||!map)return;map.setBearing(-18+(performance.no
 
 /* ═══ HUD ═══ */
 function updateMapHUD(){if(!map)return;const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
-document.getElementById('c-lat').textContent=c.lat.toFixed(4);document.getElementById('c-lon').textContent=c.lng.toFixed(4);document.getElementById('c-zoom').textContent=z.toFixed(1);
-document.getElementById('v-zoom').textContent=z.toFixed(1);document.getElementById('v-pitch').textContent=p.toFixed(0)+'°';document.getElementById('v-bearing').textContent=b.toFixed(0)+'°';
-document.getElementById('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
+getDOM('c-lat').textContent=c.lat.toFixed(4);getDOM('c-lon').textContent=c.lng.toFixed(4);getDOM('c-zoom').textContent=z.toFixed(1);
+getDOM('v-zoom').textContent=z.toFixed(1);getDOM('v-pitch').textContent=p.toFixed(0)+'°';getDOM('v-bearing').textContent=b.toFixed(0)+'°';
+getDOM('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
 
-function drawHeading(b){const cv=document.getElementById('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
+function drawHeading(b){const cv=getDOM('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
 const dirs=['N','NE','E','SE','S','SW','W','NW'];for(let i=-7;i<=7;i++){const deg=(Math.round(b/5)*5+i*5)%360,x=150+i*18;if(x<10||x>290)continue;const a=((deg%360)+360)%360;
 if(a%45===0){cx.fillStyle='rgba(255,255,255,.4)';cx.fillText(dirs[Math.round(a/45)%8]||'',x,7);cx.beginPath();cx.moveTo(x,11);cx.lineTo(x,17);cx.stroke()}
 else if(a%10===0){cx.fillStyle='rgba(255,255,255,.15)';cx.fillText(a,x,7);cx.beginPath();cx.moveTo(x,13);cx.lineTo(x,17);cx.stroke()}else{cx.beginPath();cx.moveTo(x,15);cx.lineTo(x,17);cx.stroke()}}
 cx.strokeStyle='rgba(255,255,255,.35)';cx.beginPath();cx.moveTo(150,0);cx.lineTo(150,18);cx.stroke()}
 
-function drawRadar(t){const cv=document.getElementById('radar-canvas'),cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
+function drawRadar(t){const cv=getDOM('radar-canvas'),cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
 cx.clearRect(0,0,w,h);cx.strokeStyle='rgba(255,255,255,.05)';cx.lineWidth=.5;[.33,.66,1].forEach(s=>{cx.beginPath();cx.arc(mx,my,r*s,0,Math.PI*2);cx.stroke()});
 cx.beginPath();cx.moveTo(mx,my-r);cx.lineTo(mx,my+r);cx.stroke();cx.beginPath();cx.moveTo(mx-r,my);cx.lineTo(mx+r,my);cx.stroke();
 const angle=(t*.5)%(Math.PI*2);for(let i=0;i<=8;i++){cx.strokeStyle=`rgba(255,255,255,${.12-i*.013})`;cx.lineWidth=i===0?.8:.4;const a2=angle-i*.08;cx.beginPath();cx.moveTo(mx,my);cx.lineTo(mx+Math.cos(a2)*r,my+Math.sin(a2)*r);cx.stroke()}}
 
-function updateNM(){const el=document.getElementById('num-matrix');let r='';for(let i=0;i<5;i++){let w='';for(let c=0;c<7;c++)w+=String(Math.floor(Math.random()*999)).padStart(3,'0')+' ';r+=w.trim()+'\n'}el.textContent=r}
+function updateNM(){const el=getDOM('num-matrix');let r='';for(let i=0;i<5;i++){let w='';for(let c=0;c<7;c++)w+=String(Math.floor(Math.random()*999)).padStart(3,'0')+' ';r+=w.trim()+'\n'}el.textContent=r}
 function jit(v,r){return(parseFloat(v)+(Math.random()-.5)*r).toFixed(1)}
-function simC(){setInterval(()=>{document.getElementById('v-temp').textContent=jit(72.4,2)+'°F';document.getElementById('v-hum').textContent=Math.round(58+(Math.random()-.5)*4)+'%';document.getElementById('v-wind').textContent=jit(12.3,3)+' MPH NW';document.getElementById('v-solar').textContent=Math.round(842+(Math.random()-.5)*60)+' W/m²';updateNM()},2000)}
-function initBars(){[18,22,28,35,42,50,55,60,65,72,74,70,65,58,50,42,35,28,22,18,15,12,14,16].forEach(v=>{const b=document.createElement('div');b.className='b'+(v>50?' h':'');b.style.height=(v/74*100)+'%';document.getElementById('temp-bars').appendChild(b)})}
-function tickClock(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0')}
+function simC(){setInterval(()=>{getDOM('v-temp').textContent=jit(72.4,2)+'°F';getDOM('v-hum').textContent=Math.round(58+(Math.random()-.5)*4)+'%';getDOM('v-wind').textContent=jit(12.3,3)+' MPH NW';getDOM('v-solar').textContent=Math.round(842+(Math.random()-.5)*60)+' W/m²';updateNM()},2000)}
+function initBars(){[18,22,28,35,42,50,55,60,65,72,74,70,65,58,50,42,35,28,22,18,15,12,14,16].forEach(v=>{const b=document.createElement('div');b.className='b'+(v>50?' h':'');b.style.height=(v/74*100)+'%';getDOM('temp-bars').appendChild(b)})}
+function tickClock(){const n=new Date();getDOM('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0')}
 setInterval(tickClock,1000);tickClock();
 
 let fc=0,lastFT=performance.now();
 function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
 (function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doOrbit();
-fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
+fc++;const now=performance.now();if(now-lastFT>=1000){getDOM('v-fps').textContent=fc;fc=0;lastFT=now}})()}
 
 async function main(){await bootSeq();await initMap();setupGLB()}
 main();
