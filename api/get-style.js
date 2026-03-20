@@ -1,5 +1,16 @@
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 🛡️ Sentinel: Restrict CORS to allowed origins to prevent unauthorized cross-origin requests
+  const allowedOrigins = ['https://2gbxenvironment-2.vercel.app', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Default to production origin if no allowed origin matches
+    res.setHeader('Access-Control-Allow-Origin', 'https://2gbxenvironment-2.vercel.app');
+  }
+  res.setHeader('Vary', 'Origin');
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
