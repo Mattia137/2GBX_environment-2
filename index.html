@@ -278,6 +278,32 @@ const CAM={center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18};
 const REPO_BASE='https://raw.githubusercontent.com/Mattia137/2GBX_environment-2/main/';
 const GLB_FILES=['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','railroads.glb','site_building.glb','street.glb','street_props.glb','subway_system.glb','terrain.glb'];
 
+
+// ⚡ Bolt Optimization: Cache frequently accessed DOM elements to avoid repeated querying
+const DOM = {
+  ctPlane: document.getElementById('ct-plane'),
+  ctHeli: document.getElementById('ct-heli'),
+  ctFerry: document.getElementById('ct-ferry'),
+  ctSubway: document.getElementById('ct-subway'),
+  ctBus: document.getElementById('ct-bus'),
+  cLat: document.getElementById('c-lat'),
+  cLon: document.getElementById('c-lon'),
+  cZoom: document.getElementById('c-zoom'),
+  vZoom: document.getElementById('v-zoom'),
+  vPitch: document.getElementById('v-pitch'),
+  vBearing: document.getElementById('v-bearing'),
+  headingVal: document.getElementById('heading-val'),
+  headingCanvas: document.getElementById('heading-canvas'),
+  radarCanvas: document.getElementById('radar-canvas'),
+  vFps: document.getElementById('v-fps'),
+  vTemp: document.getElementById('v-temp'),
+  vHum: document.getElementById('v-hum'),
+  vWind: document.getElementById('v-wind'),
+  vSolar: document.getElementById('v-solar'),
+  numMatrix: document.getElementById('num-matrix'),
+  clock: document.getElementById('clock')
+};
+
 /* ═══ BOOT ═══ */
 function bootSeq(){
   return new Promise(resolve=>{
@@ -573,8 +599,9 @@ function updateSim(){
     if(pos){obj.marker.setLngLat([pos.lon,pos.lat]);obj.marker.getElement().style.display=transitVisible?'block':'none'}
   }
   flightMarkers.forEach(f=>{f.marker.getElement().style.display=transitVisible?'block':'none'});
-  document.getElementById('ct-plane').textContent=ct.plane;document.getElementById('ct-heli').textContent=ct.heli;
-  document.getElementById('ct-ferry').textContent=ct.ferry;document.getElementById('ct-subway').textContent=ct.subway;document.getElementById('ct-bus').textContent=ct.bus;
+  // ⚡ Bolt Optimization: Use cached DOM elements to avoid layout thrashing and repeated queries
+  DOM.ctPlane.textContent=ct.plane;DOM.ctHeli.textContent=ct.heli;
+  DOM.ctFerry.textContent=ct.ferry;DOM.ctSubway.textContent=ct.subway;DOM.ctBus.textContent=ct.bus;
 }
 
 /* ═══ LAYERS ═══ */
@@ -597,32 +624,33 @@ function doOrbit(){if(!autoOrbit||!map)return;map.setBearing(-18+(performance.no
 
 /* ═══ HUD ═══ */
 function updateMapHUD(){if(!map)return;const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
-document.getElementById('c-lat').textContent=c.lat.toFixed(4);document.getElementById('c-lon').textContent=c.lng.toFixed(4);document.getElementById('c-zoom').textContent=z.toFixed(1);
-document.getElementById('v-zoom').textContent=z.toFixed(1);document.getElementById('v-pitch').textContent=p.toFixed(0)+'°';document.getElementById('v-bearing').textContent=b.toFixed(0)+'°';
-document.getElementById('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
+// ⚡ Bolt Optimization: Use cached DOM elements to avoid layout thrashing and repeated queries
+DOM.cLat.textContent=c.lat.toFixed(4);DOM.cLon.textContent=c.lng.toFixed(4);DOM.cZoom.textContent=z.toFixed(1);
+DOM.vZoom.textContent=z.toFixed(1);DOM.vPitch.textContent=p.toFixed(0)+'°';DOM.vBearing.textContent=b.toFixed(0)+'°';
+DOM.headingVal.textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
 
-function drawHeading(b){const cv=document.getElementById('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
+function drawHeading(b){const cv=DOM.headingCanvas,cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
 const dirs=['N','NE','E','SE','S','SW','W','NW'];for(let i=-7;i<=7;i++){const deg=(Math.round(b/5)*5+i*5)%360,x=150+i*18;if(x<10||x>290)continue;const a=((deg%360)+360)%360;
 if(a%45===0){cx.fillStyle='rgba(255,255,255,.4)';cx.fillText(dirs[Math.round(a/45)%8]||'',x,7);cx.beginPath();cx.moveTo(x,11);cx.lineTo(x,17);cx.stroke()}
 else if(a%10===0){cx.fillStyle='rgba(255,255,255,.15)';cx.fillText(a,x,7);cx.beginPath();cx.moveTo(x,13);cx.lineTo(x,17);cx.stroke()}else{cx.beginPath();cx.moveTo(x,15);cx.lineTo(x,17);cx.stroke()}}
 cx.strokeStyle='rgba(255,255,255,.35)';cx.beginPath();cx.moveTo(150,0);cx.lineTo(150,18);cx.stroke()}
 
-function drawRadar(t){const cv=document.getElementById('radar-canvas'),cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
+function drawRadar(t){const cv=DOM.radarCanvas,cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
 cx.clearRect(0,0,w,h);cx.strokeStyle='rgba(255,255,255,.05)';cx.lineWidth=.5;[.33,.66,1].forEach(s=>{cx.beginPath();cx.arc(mx,my,r*s,0,Math.PI*2);cx.stroke()});
 cx.beginPath();cx.moveTo(mx,my-r);cx.lineTo(mx,my+r);cx.stroke();cx.beginPath();cx.moveTo(mx-r,my);cx.lineTo(mx+r,my);cx.stroke();
 const angle=(t*.5)%(Math.PI*2);for(let i=0;i<=8;i++){cx.strokeStyle=`rgba(255,255,255,${.12-i*.013})`;cx.lineWidth=i===0?.8:.4;const a2=angle-i*.08;cx.beginPath();cx.moveTo(mx,my);cx.lineTo(mx+Math.cos(a2)*r,my+Math.sin(a2)*r);cx.stroke()}}
 
-function updateNM(){const el=document.getElementById('num-matrix');let r='';for(let i=0;i<5;i++){let w='';for(let c=0;c<7;c++)w+=String(Math.floor(Math.random()*999)).padStart(3,'0')+' ';r+=w.trim()+'\n'}el.textContent=r}
+function updateNM(){const el=DOM.numMatrix;let r='';for(let i=0;i<5;i++){let w='';for(let c=0;c<7;c++)w+=String(Math.floor(Math.random()*999)).padStart(3,'0')+' ';r+=w.trim()+'\n'}el.textContent=r}
 function jit(v,r){return(parseFloat(v)+(Math.random()-.5)*r).toFixed(1)}
-function simC(){setInterval(()=>{document.getElementById('v-temp').textContent=jit(72.4,2)+'°F';document.getElementById('v-hum').textContent=Math.round(58+(Math.random()-.5)*4)+'%';document.getElementById('v-wind').textContent=jit(12.3,3)+' MPH NW';document.getElementById('v-solar').textContent=Math.round(842+(Math.random()-.5)*60)+' W/m²';updateNM()},2000)}
+function simC(){setInterval(()=>{DOM.vTemp.textContent=jit(72.4,2)+'°F';DOM.vHum.textContent=Math.round(58+(Math.random()-.5)*4)+'%';DOM.vWind.textContent=jit(12.3,3)+' MPH NW';DOM.vSolar.textContent=Math.round(842+(Math.random()-.5)*60)+' W/m²';updateNM()},2000)}
 function initBars(){[18,22,28,35,42,50,55,60,65,72,74,70,65,58,50,42,35,28,22,18,15,12,14,16].forEach(v=>{const b=document.createElement('div');b.className='b'+(v>50?' h':'');b.style.height=(v/74*100)+'%';document.getElementById('temp-bars').appendChild(b)})}
-function tickClock(){const n=new Date();document.getElementById('clock').textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0')}
+function tickClock(){const n=new Date();DOM.clock.textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0')}
 setInterval(tickClock,1000);tickClock();
 
 let fc=0,lastFT=performance.now();
 function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
 (function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doOrbit();
-fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
+fc++;const now=performance.now();if(now-lastFT>=1000){DOM.vFps.textContent=fc;fc=0;lastFT=now}})()}
 
 async function main(){await bootSeq();await initMap();setupGLB()}
 main();

@@ -1,0 +1,3 @@
+## 2024-05-24 - Cache DOM Queries for High-Frequency UI Updates
+**Learning:** In architectures with tightly-coupled simulation logic and DOM rendering (like the 50ms `updateSim` interval and `requestAnimationFrame` loop in `index.html`), repeatedly calling `document.getElementById` for rapid data updates causes measurable layout thrashing and performance bottlenecks.
+**Action:** When updating the DOM rapidly in high-frequency loops, preemptively map and cache required DOM elements to a global object (e.g., `DOM`) during initialization. This eliminates repeated tree-traversal overhead.
