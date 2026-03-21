@@ -1,5 +1,16 @@
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 🛡️ Sentinel: Enforce strict CORS policy to prevent abuse of the MapTiler API proxy.
+  // We only allow our production frontend and local development server.
+  const allowedOrigins = ['https://2gbxenvironment-2.vercel.app', 'http://localhost:8080'];
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // Default to production URL to avoid '*' while keeping it functional for direct visits
+    res.setHeader('Access-Control-Allow-Origin', 'https://2gbxenvironment-2.vercel.app');
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
