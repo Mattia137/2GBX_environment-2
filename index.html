@@ -240,6 +240,10 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 /* ══════════════════════════════════════════════
    PARAMETERS — EASY ACCESS SETTINGS
    ══════════════════════════════════════════════ */
+// ⚡ Bolt Optimization: Cache frequently accessed DOM elements to avoid repeated getElementById calls
+const DOM = {};
+const getEl = id => DOM[id] || (DOM[id] = document.getElementById(id));
+
 const PARAMS = {
   // Material
   buildingColor: '#ffffff',
@@ -573,8 +577,8 @@ function updateSim(){
     if(pos){obj.marker.setLngLat([pos.lon,pos.lat]);obj.marker.getElement().style.display=transitVisible?'block':'none'}
   }
   flightMarkers.forEach(f=>{f.marker.getElement().style.display=transitVisible?'block':'none'});
-  document.getElementById('ct-plane').textContent=ct.plane;document.getElementById('ct-heli').textContent=ct.heli;
-  document.getElementById('ct-ferry').textContent=ct.ferry;document.getElementById('ct-subway').textContent=ct.subway;document.getElementById('ct-bus').textContent=ct.bus;
+  getEl('ct-plane').textContent=ct.plane;getEl('ct-heli').textContent=ct.heli;
+  getEl('ct-ferry').textContent=ct.ferry;getEl('ct-subway').textContent=ct.subway;getEl('ct-bus').textContent=ct.bus;
 }
 
 /* ═══ LAYERS ═══ */
@@ -597,17 +601,17 @@ function doOrbit(){if(!autoOrbit||!map)return;map.setBearing(-18+(performance.no
 
 /* ═══ HUD ═══ */
 function updateMapHUD(){if(!map)return;const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
-document.getElementById('c-lat').textContent=c.lat.toFixed(4);document.getElementById('c-lon').textContent=c.lng.toFixed(4);document.getElementById('c-zoom').textContent=z.toFixed(1);
-document.getElementById('v-zoom').textContent=z.toFixed(1);document.getElementById('v-pitch').textContent=p.toFixed(0)+'°';document.getElementById('v-bearing').textContent=b.toFixed(0)+'°';
-document.getElementById('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
+getEl('c-lat').textContent=c.lat.toFixed(4);getEl('c-lon').textContent=c.lng.toFixed(4);getEl('c-zoom').textContent=z.toFixed(1);
+getEl('v-zoom').textContent=z.toFixed(1);getEl('v-pitch').textContent=p.toFixed(0)+'°';getEl('v-bearing').textContent=b.toFixed(0)+'°';
+getEl('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
 
-function drawHeading(b){const cv=document.getElementById('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
+function drawHeading(b){const cv=getEl('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
 const dirs=['N','NE','E','SE','S','SW','W','NW'];for(let i=-7;i<=7;i++){const deg=(Math.round(b/5)*5+i*5)%360,x=150+i*18;if(x<10||x>290)continue;const a=((deg%360)+360)%360;
 if(a%45===0){cx.fillStyle='rgba(255,255,255,.4)';cx.fillText(dirs[Math.round(a/45)%8]||'',x,7);cx.beginPath();cx.moveTo(x,11);cx.lineTo(x,17);cx.stroke()}
 else if(a%10===0){cx.fillStyle='rgba(255,255,255,.15)';cx.fillText(a,x,7);cx.beginPath();cx.moveTo(x,13);cx.lineTo(x,17);cx.stroke()}else{cx.beginPath();cx.moveTo(x,15);cx.lineTo(x,17);cx.stroke()}}
 cx.strokeStyle='rgba(255,255,255,.35)';cx.beginPath();cx.moveTo(150,0);cx.lineTo(150,18);cx.stroke()}
 
-function drawRadar(t){const cv=document.getElementById('radar-canvas'),cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
+function drawRadar(t){const cv=getEl('radar-canvas'),cx=cv.getContext('2d'),w=260,h=260,mx=w/2,my=h/2,r=110;
 cx.clearRect(0,0,w,h);cx.strokeStyle='rgba(255,255,255,.05)';cx.lineWidth=.5;[.33,.66,1].forEach(s=>{cx.beginPath();cx.arc(mx,my,r*s,0,Math.PI*2);cx.stroke()});
 cx.beginPath();cx.moveTo(mx,my-r);cx.lineTo(mx,my+r);cx.stroke();cx.beginPath();cx.moveTo(mx-r,my);cx.lineTo(mx+r,my);cx.stroke();
 const angle=(t*.5)%(Math.PI*2);for(let i=0;i<=8;i++){cx.strokeStyle=`rgba(255,255,255,${.12-i*.013})`;cx.lineWidth=i===0?.8:.4;const a2=angle-i*.08;cx.beginPath();cx.moveTo(mx,my);cx.lineTo(mx+Math.cos(a2)*r,my+Math.sin(a2)*r);cx.stroke()}}
@@ -622,7 +626,7 @@ setInterval(tickClock,1000);tickClock();
 let fc=0,lastFT=performance.now();
 function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
 (function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doOrbit();
-fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
+fc++;const now=performance.now();if(now-lastFT>=1000){getEl('v-fps').textContent=fc;fc=0;lastFT=now}})()}
 
 async function main(){await bootSeq();await initMap();setupGLB()}
 main();
