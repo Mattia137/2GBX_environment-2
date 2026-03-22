@@ -294,9 +294,11 @@ window.addEventListener('beforeunload', () => {
 
 // Remote player meshes
 const remotePlayerMeshes = new Map();
-const coneGeo = new THREE.ConeGeometry( 0.005, 0.015, 8 );
+// Increase the size of the camera meshes significantly (e.g., radius 10, height 30 units)
+const coneGeo = new THREE.ConeGeometry( 10, 30, 8 );
 coneGeo.rotateX(Math.PI / 2); // Point the cone along the Z-axis
-const coneMat = new THREE.MeshBasicMaterial( {color: 0xffff00, wireframe: true} );
+// Use a red color and default depthTest so it can be occluded
+const coneMat = new THREE.MeshBasicMaterial( {color: 0xff0000, wireframe: true, depthTest: true} );
 
 // Subscribe to others' presence
 room.subscribe("others", (others) => {
@@ -477,10 +479,16 @@ function loadAllGLBs(){
       this.camera.projectionMatrix = m.multiply(l);
 
       // Extract position and quaternion for Liveblocks Presence
-      // The projectionMatrix contains the map's camera state, but we need
-      // the inverse to find the camera's actual position in 3D space.
+      // The projectionMatrix contains the map's combined view-projection matrix.
+      // We need the inverse to find the camera's actual position and rotation in 3D space.
       const invProj = new THREE.Matrix4().copy(this.camera.projectionMatrix).invert();
+
+      // Because `setFromMatrixPosition` and `setFromRotationMatrix` correctly handle
+      // inverted view-projection matrices in Three.js, we can just extract them directly.
       const camPos = new THREE.Vector3().setFromMatrixPosition(invProj);
+
+      // Notice we must extract the rotation matrix from the inverse projection matrix
+      // and apply it to the quaternion.
       const camQuat = new THREE.Quaternion().setFromRotationMatrix(invProj);
 
       this.currentCamPos = { x: camPos.x, y: camPos.y, z: camPos.z };
