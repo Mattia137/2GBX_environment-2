@@ -321,9 +321,9 @@ room.subscribe("others", (others) => {
   others.forEach(user => {
     if (!user.presence.cameraPos || !user.presence.cameraRot) return;
 
-    // The incoming coordinates are already in local scene space, so no coordinate conversion is needed
-    const localPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
-    const localQuat = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
+    // Store raw mercator coordinates directly; we will convert them to local space in the render loop
+    const mercatorPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
+    const mercatorQuat = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
 
     let mesh = remotePlayerMeshes.get(user.connectionId);
     if (!mesh) {
@@ -331,14 +331,13 @@ room.subscribe("others", (others) => {
       glbCustomLayer.remotePlayersGroup.add(mesh);
       remotePlayerMeshes.set(user.connectionId, mesh);
 
-      // Initialize immediately without lerp for first frame
-      mesh.position.copy(localPos);
-      mesh.quaternion.copy(localQuat);
+      // Initialize flags so the render loop knows it's the first frame
+      mesh.userData.firstFrame = true;
     }
 
-    // Store latest presence target for lerp/slerp
-    mesh.userData.targetPos = localPos;
-    mesh.userData.targetRot = localQuat;
+    // Store latest presence target in mercator space
+    mesh.userData.mercatorTargetPos = mercatorPos;
+    mesh.userData.mercatorTargetRot = mercatorQuat;
   });
 });
 
@@ -488,40 +487,47 @@ function loadAllGLBs(){
       // Use map.getFreeCameraOptions() to extract true georeferenced camera state
       // (Position is in mercator coordinates x,y,z and orientation is a quaternion)
       const freeCam = map.getFreeCameraOptions();
+      let lInv, lInvRot;
+
       if (freeCam && freeCam.position && freeCam.orientation) {
-        // We use the same 'l' matrix transformation that positions the Three.js scene on the map,
-        // but inverted, because we want to go from map (mercator) space to local scene space.
-        const lInv = new THREE.Matrix4().copy(l).invert();
-
-        // Convert world (mercator) position to local scene position
-        const worldPos = new THREE.Vector3(freeCam.position.x, freeCam.position.y, freeCam.position.z);
-        const localPos = worldPos.applyMatrix4(lInv);
-
-        // Convert world (mercator) rotation to local scene rotation
-        const lInvRot = new THREE.Quaternion().setFromRotationMatrix(lInv);
-        const worldQuat = new THREE.Quaternion(freeCam.orientation.x, freeCam.orientation.y, freeCam.orientation.z, freeCam.orientation.w);
-        const localQuat = lInvRot.multiply(worldQuat);
-
-        // Round to 5 decimal places to reduce Liveblocks payload while maintaining sub-millimeter visual accuracy
+        // We broadcast raw mercator coordinates so all clients are anchored perfectly to the exact same global coordinate space.
+        // Round to 8 decimal places (approx millimeter precision in mercator) to reduce Liveblocks payload
         this.currentCamPos = {
-          x: Number(localPos.x.toFixed(5)),
-          y: Number(localPos.y.toFixed(5)),
-          z: Number(localPos.z.toFixed(5))
+          x: Number(freeCam.position.x.toFixed(8)),
+          y: Number(freeCam.position.y.toFixed(8)),
+          z: Number(freeCam.position.z.toFixed(8))
         };
         this.currentCamRot = {
-          x: Number(localQuat.x.toFixed(5)),
-          y: Number(localQuat.y.toFixed(5)),
-          z: Number(localQuat.z.toFixed(5)),
-          w: Number(localQuat.w.toFixed(5))
+          x: Number(freeCam.orientation.x.toFixed(8)),
+          y: Number(freeCam.orientation.y.toFixed(8)),
+          z: Number(freeCam.orientation.z.toFixed(8)),
+          w: Number(freeCam.orientation.w.toFixed(8))
         };
+
+        // We still need lInv and lInvRot to position remote meshes in our local scene space
+        lInv = new THREE.Matrix4().copy(l).invert();
+        lInvRot = new THREE.Quaternion();
+        // Extract pure rotation quaternion via decompose, since setFromRotationMatrix fails on matrices with extreme non-uniform scaling
+        lInv.decompose(new THREE.Vector3(), lInvRot, new THREE.Vector3());
       }
 
       // Interpolate remote players
-      if (remotePlayerMeshes && remotePlayerMeshes.size > 0) {
+      if (remotePlayerMeshes && remotePlayerMeshes.size > 0 && lInv && lInvRot) {
         for (const [id, mesh] of remotePlayerMeshes.entries()) {
-          if (mesh.userData.targetPos && mesh.userData.targetRot) {
-            mesh.position.lerp(mesh.userData.targetPos, 0.2);
-            mesh.quaternion.slerp(mesh.userData.targetRot, 0.2);
+          if (mesh.userData.mercatorTargetPos && mesh.userData.mercatorTargetRot) {
+
+            // Convert remote user's mercator coordinates to our local scene space
+            const localTargetPos = mesh.userData.mercatorTargetPos.clone().applyMatrix4(lInv);
+            const localTargetRot = lInvRot.clone().multiply(mesh.userData.mercatorTargetRot);
+
+            if (mesh.userData.firstFrame) {
+              mesh.position.copy(localTargetPos);
+              mesh.quaternion.copy(localTargetRot);
+              mesh.userData.firstFrame = false;
+            } else {
+              mesh.position.lerp(localTargetPos, 0.2);
+              mesh.quaternion.slerp(localTargetRot, 0.2);
+            }
           }
         }
       }
