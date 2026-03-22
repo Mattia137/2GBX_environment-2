@@ -85,6 +85,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 .maplibregl-ctrl-bottom-left,.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-top-left,.maplibregl-ctrl-top-right{display:none!important}
 .maplibregl-marker{z-index:3!important}
 
+/* Hide Liveblocks Badge/Popup */
+.lb-root, #liveblocks-badge, [class^="lb-"] { display: none !important; }
+
 /* ═══ VIGNETTE ═══ */
 #vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse 55% 55% at 50% 48%,transparent 0%,rgba(0,0,0,.1) var(--vig-start),rgba(0,0,0,.5) var(--vig-mid),rgba(0,0,0,.88) var(--vig-end),#000 100%)}
 #scanlines{position:fixed;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0px,transparent 3px,rgba(255,255,255,.005) 3px,rgba(255,255,255,.005) 4px);mix-blend-mode:overlay}
@@ -318,25 +321,9 @@ room.subscribe("others", (others) => {
   others.forEach(user => {
     if (!user.presence.cameraPos || !user.presence.cameraRot) return;
 
-    // Convert incoming mercator georeferenced coordinates to local Three.js coordinates
-    // We use the same 'l' matrix transformation that positions the Three.js scene on the map,
-    // but inverted, because we want to go from map (mercator) space to local scene space.
-    const mc = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
-    const mScale = mc.meterInMercatorCoordinateUnits();
-    const l = new THREE.Matrix4()
-      .makeTranslation(mc.x, mc.y, mc.z)
-      .scale(new THREE.Vector3(mScale, -mScale, mScale))
-      .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
-    const lInv = new THREE.Matrix4().copy(l).invert();
-
-    const worldPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
-    const localPos = worldPos.applyMatrix4(lInv);
-
-    // Convert quaternion
-    // Extract rotation from lInv and apply it to the orientation
-    const lInvRot = new THREE.Quaternion().setFromRotationMatrix(lInv);
-    const worldQuat = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
-    const localQuat = lInvRot.multiply(worldQuat);
+    // The incoming coordinates are already in local scene space, so no coordinate conversion is needed
+    const localPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
+    const localQuat = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
 
     let mesh = remotePlayerMeshes.get(user.connectionId);
     if (!mesh) {
@@ -502,8 +489,31 @@ function loadAllGLBs(){
       // (Position is in mercator coordinates x,y,z and orientation is a quaternion)
       const freeCam = map.getFreeCameraOptions();
       if (freeCam && freeCam.position && freeCam.orientation) {
-        this.currentCamPos = { x: freeCam.position.x, y: freeCam.position.y, z: freeCam.position.z };
-        this.currentCamRot = { x: freeCam.orientation.x, y: freeCam.orientation.y, z: freeCam.orientation.z, w: freeCam.orientation.w };
+        // We use the same 'l' matrix transformation that positions the Three.js scene on the map,
+        // but inverted, because we want to go from map (mercator) space to local scene space.
+        const lInv = new THREE.Matrix4().copy(l).invert();
+
+        // Convert world (mercator) position to local scene position
+        const worldPos = new THREE.Vector3(freeCam.position.x, freeCam.position.y, freeCam.position.z);
+        const localPos = worldPos.applyMatrix4(lInv);
+
+        // Convert world (mercator) rotation to local scene rotation
+        const lInvRot = new THREE.Quaternion().setFromRotationMatrix(lInv);
+        const worldQuat = new THREE.Quaternion(freeCam.orientation.x, freeCam.orientation.y, freeCam.orientation.z, freeCam.orientation.w);
+        const localQuat = lInvRot.multiply(worldQuat);
+
+        // Round to 5 decimal places to reduce Liveblocks payload while maintaining sub-millimeter visual accuracy
+        this.currentCamPos = {
+          x: Number(localPos.x.toFixed(5)),
+          y: Number(localPos.y.toFixed(5)),
+          z: Number(localPos.z.toFixed(5))
+        };
+        this.currentCamRot = {
+          x: Number(localQuat.x.toFixed(5)),
+          y: Number(localQuat.y.toFixed(5)),
+          z: Number(localQuat.z.toFixed(5)),
+          w: Number(localQuat.w.toFixed(5))
+        };
       }
 
       // Interpolate remote players
