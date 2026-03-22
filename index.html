@@ -318,6 +318,26 @@ room.subscribe("others", (others) => {
   others.forEach(user => {
     if (!user.presence.cameraPos || !user.presence.cameraRot) return;
 
+    // Convert incoming mercator georeferenced coordinates to local Three.js coordinates
+    // We use the same 'l' matrix transformation that positions the Three.js scene on the map,
+    // but inverted, because we want to go from map (mercator) space to local scene space.
+    const mc = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
+    const mScale = mc.meterInMercatorCoordinateUnits();
+    const l = new THREE.Matrix4()
+      .makeTranslation(mc.x, mc.y, mc.z)
+      .scale(new THREE.Vector3(mScale, -mScale, mScale))
+      .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
+    const lInv = new THREE.Matrix4().copy(l).invert();
+
+    const worldPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
+    const localPos = worldPos.applyMatrix4(lInv);
+
+    // Convert quaternion
+    // Extract rotation from lInv and apply it to the orientation
+    const lInvRot = new THREE.Quaternion().setFromRotationMatrix(lInv);
+    const worldQuat = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
+    const localQuat = lInvRot.multiply(worldQuat);
+
     let mesh = remotePlayerMeshes.get(user.connectionId);
     if (!mesh) {
       mesh = new THREE.Mesh(coneGeo, coneMat);
@@ -325,13 +345,13 @@ room.subscribe("others", (others) => {
       remotePlayerMeshes.set(user.connectionId, mesh);
 
       // Initialize immediately without lerp for first frame
-      mesh.position.set(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
-      mesh.quaternion.set(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
+      mesh.position.copy(localPos);
+      mesh.quaternion.copy(localQuat);
     }
 
     // Store latest presence target for lerp/slerp
-    mesh.userData.targetPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
-    mesh.userData.targetRot = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
+    mesh.userData.targetPos = localPos;
+    mesh.userData.targetRot = localQuat;
   });
 });
 
@@ -478,21 +498,13 @@ function loadAllGLBs(){
 
       this.camera.projectionMatrix = m.multiply(l);
 
-      // Extract position and quaternion for Liveblocks Presence
-      // The projectionMatrix contains the map's combined view-projection matrix.
-      // We need the inverse to find the camera's actual position and rotation in 3D space.
-      const invProj = new THREE.Matrix4().copy(this.camera.projectionMatrix).invert();
-
-      // Because `setFromMatrixPosition` and `setFromRotationMatrix` correctly handle
-      // inverted view-projection matrices in Three.js, we can just extract them directly.
-      const camPos = new THREE.Vector3().setFromMatrixPosition(invProj);
-
-      // Notice we must extract the rotation matrix from the inverse projection matrix
-      // and apply it to the quaternion.
-      const camQuat = new THREE.Quaternion().setFromRotationMatrix(invProj);
-
-      this.currentCamPos = { x: camPos.x, y: camPos.y, z: camPos.z };
-      this.currentCamRot = { x: camQuat.x, y: camQuat.y, z: camQuat.z, w: camQuat.w };
+      // Use map.getFreeCameraOptions() to extract true georeferenced camera state
+      // (Position is in mercator coordinates x,y,z and orientation is a quaternion)
+      const freeCam = map.getFreeCameraOptions();
+      if (freeCam && freeCam.position && freeCam.orientation) {
+        this.currentCamPos = { x: freeCam.position.x, y: freeCam.position.y, z: freeCam.position.z };
+        this.currentCamRot = { x: freeCam.orientation.x, y: freeCam.orientation.y, z: freeCam.orientation.z, w: freeCam.orientation.w };
+      }
 
       // Interpolate remote players
       if (remotePlayerMeshes && remotePlayerMeshes.size > 0) {
