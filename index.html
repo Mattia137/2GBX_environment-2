@@ -8,6 +8,7 @@
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://unpkg.com/@liveblocks/client@0.17.9/dist/liveblocks.umd.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
 
@@ -278,6 +279,64 @@ const CAM={center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18};
 const REPO_BASE='https://raw.githubusercontent.com/Mattia137/2GBX_environment-2/main/';
 const GLB_FILES=['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','railroads.glb','site_building.glb','street.glb','street_props.glb','subway_system.glb','terrain.glb'];
 
+/* ═══ LIVEBLOCKS ═══ */
+// Obfuscate the public key to prevent easy scraping
+const lbParts = ['pk_dev_HeuZfdigqrA', 'hzn2ptSl0oMyRQ', 'Cw-zZB7MnlCnl0W', 'D8iXph1hR7DZgtX', 'D1a9Qz-9d'];
+const client = liveblocks.createClient({ publicApiKey: lbParts.join('') });
+const room = client.enterRoom('hudson-yards-room', {
+  initialPresence: { cameraPos: null, cameraRot: null }
+});
+
+// Remote player meshes
+const remotePlayerMeshes = new Map();
+const coneGeo = new THREE.ConeGeometry( 0.005, 0.015, 8 );
+coneGeo.rotateX(Math.PI / 2); // Point the cone along the Z-axis
+const coneMat = new THREE.MeshBasicMaterial( {color: 0xffff00, wireframe: true} );
+
+// Subscribe to others' presence
+room.subscribe("others", (others) => {
+  if (!glbCustomLayer || !glbCustomLayer.remotePlayersGroup) return;
+
+  const currentIds = new Set(others.map(o => o.connectionId));
+
+  // Remove disconnected users
+  for (const [id, mesh] of remotePlayerMeshes.entries()) {
+    if (!currentIds.has(id)) {
+      glbCustomLayer.remotePlayersGroup.remove(mesh);
+      remotePlayerMeshes.delete(id);
+    }
+  }
+
+  // Create new users & update targets
+  others.forEach(user => {
+    if (!user.presence.cameraPos || !user.presence.cameraRot) return;
+
+    let mesh = remotePlayerMeshes.get(user.connectionId);
+    if (!mesh) {
+      mesh = new THREE.Mesh(coneGeo, coneMat);
+      glbCustomLayer.remotePlayersGroup.add(mesh);
+      remotePlayerMeshes.set(user.connectionId, mesh);
+
+      // Initialize immediately without lerp for first frame
+      mesh.position.set(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
+      mesh.quaternion.set(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
+    }
+
+    // Store latest presence target for lerp/slerp
+    mesh.userData.targetPos = new THREE.Vector3(user.presence.cameraPos.x, user.presence.cameraPos.y, user.presence.cameraPos.z);
+    mesh.userData.targetRot = new THREE.Quaternion(user.presence.cameraRot.x, user.presence.cameraRot.y, user.presence.cameraRot.z, user.presence.cameraRot.w);
+  });
+});
+
+// Broadcast local camera state at 15fps (~66ms)
+setInterval(() => {
+  if (!glbCustomLayer || !glbCustomLayer.currentCamPos) return;
+  room.updatePresence({
+    cameraPos: glbCustomLayer.currentCamPos,
+    cameraRot: glbCustomLayer.currentCamRot
+  });
+}, 66);
+
 /* ═══ BOOT ═══ */
 function bootSeq(){
   return new Promise(resolve=>{
@@ -397,6 +456,10 @@ function loadAllGLBs(){
         antialias: true
       });
       this.renderer.autoClear = false;
+
+      // Remote Players Group
+      this.remotePlayersGroup = new THREE.Group();
+      this.scene.add(this.remotePlayersGroup);
     },
     render(gl, matrix){
       // Correct matrix order: MapProjection * (Translation * Scale * Rotation)
@@ -407,6 +470,27 @@ function loadAllGLBs(){
         .multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
 
       this.camera.projectionMatrix = m.multiply(l);
+
+      // Extract position and quaternion for Liveblocks Presence
+      // The projectionMatrix contains the map's camera state, but we need
+      // the inverse to find the camera's actual position in 3D space.
+      const invProj = new THREE.Matrix4().copy(this.camera.projectionMatrix).invert();
+      const camPos = new THREE.Vector3().setFromMatrixPosition(invProj);
+      const camQuat = new THREE.Quaternion().setFromRotationMatrix(invProj);
+
+      this.currentCamPos = { x: camPos.x, y: camPos.y, z: camPos.z };
+      this.currentCamRot = { x: camQuat.x, y: camQuat.y, z: camQuat.z, w: camQuat.w };
+
+      // Interpolate remote players
+      if (remotePlayerMeshes && remotePlayerMeshes.size > 0) {
+        for (const [id, mesh] of remotePlayerMeshes.entries()) {
+          if (mesh.userData.targetPos && mesh.userData.targetRot) {
+            mesh.position.lerp(mesh.userData.targetPos, 0.2);
+            mesh.quaternion.slerp(mesh.userData.targetRot, 0.2);
+          }
+        }
+      }
+
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
       map.triggerRepaint();
