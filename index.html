@@ -8,7 +8,7 @@
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://unpkg.com/@liveblocks/client@0.17.9/dist/liveblocks.umd.js"></script>
+
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
 
@@ -237,7 +237,8 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 </div>
 <div id="error-msg"></div>
 
-<script>
+<script type="module">
+import { createClient } from "https://esm.sh/@liveblocks/client@1.0.0";
 /* ══════════════════════════════════════════════
    PARAMETERS — EASY ACCESS SETTINGS
    ══════════════════════════════════════════════ */
@@ -282,8 +283,8 @@ const GLB_FILES=['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','r
 /* ═══ LIVEBLOCKS ═══ */
 // Obfuscate the public key to prevent easy scraping
 const lbParts = ['pk_dev_HeuZfdigqrA', 'hzn2ptSl0oMyRQ', 'Cw-zZB7MnlCnl0W', 'D8iXph1hR7DZgtX', 'D1a9Qz-9d'];
-const client = liveblocks.createClient({ publicApiKey: lbParts.join('') });
-const room = client.enterRoom('hudson-yards-room', {
+const client = createClient({ publicApiKey: lbParts.join('') });
+const room = client.enter('hudson-yards-room', {
   initialPresence: { cameraPos: null, cameraRot: null }
 });
 
@@ -421,7 +422,7 @@ async function initMap(){
       map.addLayer({id:'3d-buildings',source:src,'source-layer':'building',type:'fill-extrusion',minzoom:13,paint:{'fill-extrusion-color':PARAMS.buildingColor,'fill-extrusion-height':['get','render_height'],'fill-extrusion-base':['get','render_min_height'],'fill-extrusion-opacity':PARAMS.buildingOpacity}});
       map.addLayer({id:'3d-buildings-outline',source:src,'source-layer':'building',type:'line',minzoom:14,paint:{'line-color':'rgba(255,255,255,0.15)','line-width':0.5}});
       // Fog
-      map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
+      if(map.setFog) map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
       addSiteMarker();updateSun();
       loadAllGLBs();initTransit();startHUD();
     });
@@ -708,6 +709,12 @@ function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
 (function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doOrbit();
 fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
 
+
+/* Expose functions to global scope for inline event handlers */
+window.toggleLayer = toggleLayer;
+window.setView = setView;
+window.resetCamera = resetCamera;
+window.updateSun = updateSun;
 async function main(){await bootSeq();await initMap();setupGLB()}
 main();
 </script>
