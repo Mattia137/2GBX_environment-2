@@ -238,7 +238,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 <div id="error-msg"></div>
 
 <script type="module">
-import { createClient } from "https://esm.sh/@liveblocks/client@1.0.0";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@liveblocks/client@3.15.4/+esm";
 /* ══════════════════════════════════════════════
    PARAMETERS — EASY ACCESS SETTINGS
    ══════════════════════════════════════════════ */
@@ -284,8 +284,12 @@ const GLB_FILES=['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','r
 // Obfuscate the public key to prevent easy scraping
 const lbParts = ['pk_dev_HeuZfdigqrA', 'hzn2ptSl0oMyRQ', 'Cw-zZB7MnlCnl0W', 'D8iXph1hR7DZgtX', 'D1a9Qz-9d'];
 const client = createClient({ publicApiKey: lbParts.join('') });
-const room = client.enter('hudson-yards-room', {
+const { room, leave } = client.enterRoom('hudson-yards-room', {
   initialPresence: { cameraPos: null, cameraRot: null }
+});
+
+window.addEventListener('beforeunload', () => {
+  leave();
 });
 
 // Remote player meshes

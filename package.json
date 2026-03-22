@@ -1,3 +1,24 @@
 {
-  "type": "module"
+  "type": "module",
+  "name": "app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "test-liveblocks.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mattia137/2GBX_environment-2.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mattia137/2GBX_environment-2/issues"
+  },
+  "homepage": "https://github.com/Mattia137/2GBX_environment-2#readme",
+  "dependencies": {
+    "@liveblocks/client": "^2.0.0"
+  }
 }
