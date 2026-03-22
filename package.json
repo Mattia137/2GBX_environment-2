@@ -19,6 +19,8 @@
   },
   "homepage": "https://github.com/Mattia137/2GBX_environment-2#readme",
   "dependencies": {
-    "@liveblocks/client": "^2.0.0"
+    "@liveblocks/client": "^2.0.0",
+    "maplibre-gl": "^5.21.0",
+    "three": "^0.183.2"
   }
 }
