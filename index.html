@@ -515,8 +515,12 @@ function loadAllGLBs(){
 
       // Orientation is derived from MapLibre pitch and bearing
       // Mapbox equivalent orientation is ZYX euler: Z (-bearing), X (pitch)
-      // Bearing is clockwise, but Three.js uses counter-clockwise rotation, so we use -bearing
-      const camQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, -bearing, 'ZYX'));
+      // In this specific mercator projection to ThreeJS space mapping:
+      // When bearing=0 (North), the camera needs to look down -Y in Mercator.
+      // Since Three.js camera looks down -Z which translates to +Y,
+      // we must rotate 180 degrees (Math.PI) to point North, and then apply positive bearing rotation
+      // instead of negative because of the reflected axis space.
+      const camQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, bearing + Math.PI, 'ZYX'));
 
       // We broadcast raw mercator coordinates so all clients are anchored perfectly to the exact same global coordinate space.
       // Round to 8 decimal places (approx millimeter precision in mercator) to reduce Liveblocks payload
