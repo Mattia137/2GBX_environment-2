@@ -299,7 +299,9 @@ window.addEventListener('beforeunload', () => {
 const remotePlayerMeshes = new Map();
 // Increase the size of the camera meshes significantly (e.g., radius 10, height 30 units)
 const coneGeo = new THREE.ConeGeometry( 10, 30, 8 );
-coneGeo.rotateX(Math.PI / 2); // Point the cone along the Z-axis
+// A cone defaults to pointing up (+Y).
+// Rotate it -90 degrees on X to point down the standard Three.js forward vector (-Z).
+coneGeo.rotateX(-Math.PI / 2);
 // Use a red color and default depthTest so it can be occluded
 const coneMat = new THREE.MeshBasicMaterial( {color: 0xff0000, wireframe: true, depthTest: true} );
 
@@ -496,7 +498,8 @@ function loadAllGLBs(){
 
       // Distance from the center point to the camera in mercator units
       const z0 = tr.cameraElevation || 0;
-      const dist = tr.cameraToCenterDistance / scale;
+      const worldSize = 512 * scale; // Calculate the current map world size
+      const dist = tr.cameraToCenterDistance / worldSize; // Use worldSize for proper mercator scaling
 
       // 1. Camera height above ground
       const camZ = dist * Math.cos(pitch) + z0;
@@ -529,28 +532,44 @@ function loadAllGLBs(){
         w: Number(camQuat.w.toFixed(8))
       };
 
-      // We still need lInv and lInvRot to position remote meshes in our local scene space
+      // We need lInv to position remote meshes in our local scene space
       let lInv = new THREE.Matrix4().copy(l).invert();
-      let lInvRot = new THREE.Quaternion();
-      // Extract pure rotation quaternion via decompose, since setFromRotationMatrix fails on matrices with extreme non-uniform scaling
-      lInv.decompose(new THREE.Vector3(), lInvRot, new THREE.Vector3());
 
       // Interpolate remote players
-      if (remotePlayerMeshes && remotePlayerMeshes.size > 0 && lInv && lInvRot) {
+      if (remotePlayerMeshes && remotePlayerMeshes.size > 0 && lInv) {
+        // Define base directional vectors in Mercator space (standard Three.js camera looks down -Z)
+        const mercatorForward = new THREE.Vector3(0, 0, -1);
+        const mercatorUp = new THREE.Vector3(0, 1, 0);
+
         for (const [id, mesh] of remotePlayerMeshes.entries()) {
           if (mesh.userData.mercatorTargetPos && mesh.userData.mercatorTargetRot) {
 
             // Convert remote user's mercator coordinates to our local scene space
             const localTargetPos = mesh.userData.mercatorTargetPos.clone().applyMatrix4(lInv);
-            const localTargetRot = lInvRot.clone().multiply(mesh.userData.mercatorTargetRot);
+
+            // Compute pure directional vectors from remote quaternion in mercator space
+            const rot = mesh.userData.mercatorTargetRot.clone();
+            const fwd = mercatorForward.clone().applyQuaternion(rot);
+            const up = mercatorUp.clone().applyQuaternion(rot);
+
+            // Apply inverse reflection/scale to convert mercator directions to local directions
+            const localFwd = fwd.transformDirection(lInv);
+            const localUp = up.transformDirection(lInv);
+
+            // Create a dummy object to construct the target orientation
+            const dummy = new THREE.Object3D();
+            dummy.position.copy(localTargetPos);
+            dummy.up.copy(localUp);
+            // Look along the forward vector from the current position
+            dummy.lookAt(localTargetPos.clone().add(localFwd));
 
             if (mesh.userData.firstFrame) {
               mesh.position.copy(localTargetPos);
-              mesh.quaternion.copy(localTargetRot);
+              mesh.quaternion.copy(dummy.quaternion);
               mesh.userData.firstFrame = false;
             } else {
               mesh.position.lerp(localTargetPos, 0.2);
-              mesh.quaternion.slerp(localTargetRot, 0.2);
+              mesh.quaternion.slerp(dummy.quaternion, 0.2);
             }
           }
         }
