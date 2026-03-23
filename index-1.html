@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>ALLSPARK // HUDSON YARDS MASKED</title>
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono&display=swap');
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+        #map { position: absolute; inset: 0; z-index: 1; }
+        #hud {
+            position: fixed; inset: 0; z-index: 10; pointer-events: none;
+            font-family: 'Fragment Mono', monospace; color: rgba(255,255,255,0.9);
+            padding: 30px; font-size: 9px; text-transform: uppercase; letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="hud">
+    <div style="border-left: 1px solid white; padding-left: 12px;">
+        DATA_SOURCE: MAPTILER_STATIC_SYNC<br>
+        GEO_REF: 40.754283, -74.006649 // ALIGN: OK<br>
+        MATERIAL: PBR_GLB_RESTORED // MASK: STENCIL_INVERTED
+    </div>
+</div>
+
+<script>
+const SITE_ORIGIN = { lng: -74.006216, lat: 40.755080 };
+const VERCEL_API = 'https://2gbxenvironment-2.vercel.app';
+const REPO_BASE = 'https://raw.githubusercontent.com/Mattia137/2GBX_environment-2/main/';
+
+const GLB_FILES = [
+    'bounding_box.glb', 'cold_storage.glb', 'dsr.glb', 'highline.glb', 
+    'hy_new_dev.glb', 'railroads.glb', 'site_building.glb', 
+    'street.glb', 'street_props.glb', 'subway_system.glb', 'terrain.glb', 
+];
+
+function cleanStyle(s) {
+    if (!s.layers) return s;
+    s.layers = s.layers.filter(l => {
+        if (l.type === 'symbol') return false;
+        const id = (l.id || '').toLowerCase();
+        return !(id.includes('label') || id.includes('name') || id.includes('poi'));
+    });
+    s.layers.forEach(l => {
+        const t = l.type;
+        if (t === 'background') l.paint = { 'background-color': '#000000' };
+        if (t === 'fill') l.paint = { ...l.paint, 'fill-color': '#060608', 'fill-opacity': 0.8 };
+        if (t === 'line') l.paint = { ...l.paint, 'line-color': '#161620', 'line-opacity': 0.5 };
+    });
+    return s;
+}
+
+async function init() {
+    const res = await fetch(`${VERCEL_API}/api/get-style`);
+    let style = await res.json();
+    style = cleanStyle(style);
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: style,
+        center: [SITE_ORIGIN.lng, SITE_ORIGIN.lat],
+        zoom: 16.5,
+        pitch: 62,
+        bearing: -18,
+        antialias: true
+    });
+
+    const modelAsMercator = maplibregl.MercatorCoordinate.fromLngLat([SITE_ORIGIN.lng, SITE_ORIGIN.lat], 0);
+
+    const customLayer = {
+        id: '3d-models',
+        type: 'custom',
+        renderingMode: '3d',
+        onAdd: function (map, gl) {
+            this.camera = new THREE.Camera();
+            this.scene = new THREE.Scene();
+            this.maskScene = new THREE.Scene();
+
+            this.scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+            const sun = new THREE.DirectionalLight(0xffffff, 0.65);
+            sun.position.set(0, -70, 100);
+            this.scene.add(sun);
+
+            const loader = new THREE.GLTFLoader();
+
+            // Pass 1 material: invisible, stamps stencil=1 wherever the floor plane projects
+            const maskMaterial = new THREE.MeshBasicMaterial({
+                colorWrite: false,
+                depthWrite: false,
+                side: THREE.DoubleSide,
+                stencilWrite: true,
+                stencilFunc: THREE.AlwaysStencilFunc,
+                stencilRef: 1,
+                stencilZPass: THREE.ReplaceStencilOp
+            });
+
+            // Pass 2: full-screen quad that paints black only where stencil=1
+            this.eraseCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+            this.eraseScene = new THREE.Scene();
+            this.eraseScene.add(new THREE.Mesh(
+                new THREE.PlaneGeometry(2, 2),
+                new THREE.MeshBasicMaterial({
+                    color: 0x000000,
+                    depthTest: false,
+                    depthWrite: false,
+                    stencilWrite: true,
+                    stencilFunc: THREE.EqualStencilFunc,
+                    stencilRef: 1,
+                    stencilFail: THREE.KeepStencilOp,
+                    stencilZFail: THREE.KeepStencilOp,
+                    stencilZPass: THREE.KeepStencilOp
+                })
+            ));
+
+            GLB_FILES.forEach(file => {
+                loader.load(`${REPO_BASE}${file}`, (gltf) => {
+                    const model = gltf.scene;
+
+                    if (file === 'bounding_box.glb') {
+                        // Derive the site footprint from the loaded geometry bounds.
+                        // We stamp only a flat floor plane — not the 3D box walls/top —
+                        // so the stencil matches just the ground-level footprint.
+                        const bbox = new THREE.Box3().setFromObject(model);
+                        const center = bbox.getCenter(new THREE.Vector3());
+                        const size = bbox.getSize(new THREE.Vector3());
+                        const floor = new THREE.Mesh(
+                            new THREE.PlaneGeometry(size.x, size.z),
+                            maskMaterial
+                        );
+                        floor.rotation.x = -Math.PI / 2; // lie flat in XZ (Y-up GLB space)
+                        floor.position.set(center.x, bbox.min.y, center.z);
+                        this.maskScene.add(floor);
+                    } else {
+                        model.traverse(ch => {
+                            if (ch.isMesh) {
+                                ch.material = new THREE.MeshStandardMaterial({
+                                    color: 0xffffff, roughness: 0.5, metalness: 0.1,
+                                    transparent: true, opacity: 0.6, side: THREE.DoubleSide
+                                });
+                                ch.add(new THREE.LineSegments(
+                                    new THREE.EdgesGeometry(ch.geometry),
+                                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 })
+                                ));
+                            }
+                        });
+                        this.scene.add(model);
+                    }
+                });
+            });
+
+            this.renderer = new THREE.WebGLRenderer({
+                canvas: map.getCanvas(),
+                context: gl,
+                antialias: true
+            });
+            this.renderer.autoClear = false;
+        },
+
+        render: function (gl, matrix) {
+            const rotationX = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+            const scale = modelAsMercator.meterInMercatorCoordinateUnits();
+            const l = new THREE.Matrix4()
+                .makeTranslation(modelAsMercator.x, modelAsMercator.y, modelAsMercator.z)
+                .scale(new THREE.Vector3(scale, -scale, scale))
+                .multiply(rotationX);
+
+            this.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
+
+            // Sync Three.js state cache, then prepare stencil buffer
+            this.renderer.resetState();
+            gl.enable(gl.STENCIL_TEST);
+            gl.stencilMask(0xff);
+            gl.clear(gl.STENCIL_BUFFER_BIT);
+
+            // Pass 1: invisible bounding box stamps stencil=1 on its projected pixels
+            this.renderer.render(this.maskScene, this.camera);
+
+            // Pass 2: full-screen black quad, draws only where stencil=1 → erases tiles
+            this.renderer.render(this.eraseScene, this.eraseCamera);
+
+            // Pass 3: 3D models — resetState so Three.js re-applies material defaults,
+            //   MeshStandardMaterial has stencilWrite:false → Three.js disables stencil test
+            this.renderer.resetState();
+            this.renderer.render(this.scene, this.camera);
+
+            map.triggerRepaint();
+        }
+    };
+
+    map.on('style.load', () => {
+        map.addLayer(customLayer);
+    });
+}
+
+init();
+</script>
+</body>
+</html>
