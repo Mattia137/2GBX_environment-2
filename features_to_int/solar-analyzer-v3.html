@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Analyzer — Ladybug Analysis</title>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Space+Mono&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"DM Sans"', 'sans-serif'],
+                        mono: ['"Space Mono"', 'monospace'],
+                    },
+                    colors: {
+                        surface: {
+                            100: '#1e2430',
+                            200: '#181d26',
+                            300: '#12151b',
+                            400: '#0b0d10'
+                        },
+                        brand: {
+                            DEFAULT: '#4da8ff',
+                            hover: '#3a8be0'
+                        },
+                        ladybug: {
+                            0: '#0000ff', // Blue
+                            1: '#00ffff', // Cyan
+                            2: '#00ff00', // Green
+                            3: '#ffff00', // Yellow
+                            4: '#ff0000'  // Red
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0b0d10; color: #cdd5e0; }
+        #canvas-container { position: relative; width: 100%; height: 100%; outline: none; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #33405a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4da8ff; }
+
+        .dropzone {
+            transition: all 0.2s ease;
+            border: 1px dashed #33405a;
+        }
+        .dropzone.dragover {
+            border-color: #4da8ff;
+            background-color: rgba(77, 168, 255, 0.05);
+        }
+
+        .ladybug-gradient {
+            background: linear-gradient(to top, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+        }
+    </style>
+</head>
+<body class="flex h-screen antialiased">
+
+    <!-- Left Sidebar: Controls -->
+    <aside class="w-80 bg-surface-300 border-r border-surface-100 flex flex-col z-10 shadow-xl overflow-hidden">
+        <header class="p-4 border-b border-surface-100 flex items-center gap-3 shrink-0">
+            <i data-lucide="sun" class="text-brand w-5 h-5"></i>
+            <h1 class="font-semibold tracking-wide text-sm text-white">SOLAR ANALYZER</h1>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-6 text-sm">
+            
+            <!-- Models Section -->
+            <section class="space-y-3">
+                <h2 class="text-xs font-mono text-gray-400 uppercase tracking-wider">Models (.obj)</h2>
+                
+                <div id="drop-target" class="dropzone rounded-lg p-3 cursor-pointer text-center group" onclick="document.getElementById('input-target').click()">
+                    <i data-lucide="box" class="w-5 h-5 mx-auto mb-1 text-gray-500 group-hover:text-brand transition-colors"></i>
+                    <p class="font-medium text-gray-300 group-hover:text-white transition-colors" id="label-target">Upload Target</p>
+                    <input type="file" id="input-target" accept=".obj" class="hidden">
+                </div>
+
+                <div id="drop-context" class="dropzone rounded-lg p-3 cursor-pointer text-center group" onclick="document.getElementById('input-context').click()">
+                    <i data-lucide="building-2" class="w-5 h-5 mx-auto mb-1 text-gray-500 group-hover:text-brand transition-colors"></i>
+                    <p class="font-medium text-gray-300 group-hover:text-white transition-colors" id="label-context">Upload Context</p>
+                    <input type="file" id="input-context" accept=".obj" class="hidden">
+                </div>
+                
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-xs text-gray-400">Clear Models</span>
+                    <button id="btn-clear" class="p-1 hover:text-red-400 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </section>
+
+            <hr class="border-surface-100">
+
+            <!-- Location Section -->
+            <section class="space-y-3">
+                <h2 class="text-xs font-mono text-gray-400 uppercase tracking-wider">Location</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Latitude</label>
+                        <input type="number" id="lat" value="40.7527" step="0.0001" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1.5 focus:border-brand focus:outline-none transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Longitude</label>
+                        <input type="number" id="lon" value="-74.0005" step="0.0001" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1.5 focus:border-brand focus:outline-none transition-colors">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">North Offset (°)</label>
+                    <input type="number" id="north-offset" value="0" step="1" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1.5 focus:border-brand focus:outline-none transition-colors">
+                </div>
+            </section>
+
+            <hr class="border-surface-100">
+
+            <!-- Transform Section -->
+            <section class="space-y-3">
+                <h2 class="text-xs font-mono text-gray-400 uppercase tracking-wider">Transform</h2>
+                
+                <div class="flex gap-2 text-xs">
+                    <button id="btn-sel-target" class="flex-1 py-1 px-2 rounded bg-surface-200 border border-surface-100 text-gray-400 hover:text-white transition-colors" onclick="toggleTransform('target')">Target</button>
+                    <button id="btn-sel-context" class="flex-1 py-1 px-2 rounded bg-surface-200 border border-surface-100 text-gray-400 hover:text-white transition-colors" onclick="toggleTransform('context')">Context</button>
+                    <button id="btn-sel-master" class="flex-1 py-1 px-2 rounded bg-surface-200 border border-surface-100 text-gray-400 hover:text-white transition-colors" onclick="toggleTransform('master')">Both</button>
+                </div>
+                
+                <div class="flex gap-2 text-xs mt-2 opacity-50 pointer-events-none" id="transform-modes">
+                    <button id="btn-mode-translate" class="flex-1 py-1 px-2 rounded bg-surface-200 border border-brand text-brand transition-colors" onclick="setTransformMode('translate')">Move</button>
+                    <button id="btn-mode-rotate" class="flex-1 py-1 px-2 rounded bg-surface-200 border border-surface-100 text-gray-400 hover:text-white transition-colors" onclick="setTransformMode('rotate')">Rotate</button>
+                    <button id="btn-mode-scale" class="flex-1 py-1 px-2 rounded bg-surface-200 border border-surface-100 text-gray-400 hover:text-white transition-colors" onclick="setTransformMode('scale')">Scale</button>
+                </div>
+            </section>
+
+            <hr class="border-surface-100">
+
+            <!-- Mode Toggle -->
+            <section>
+                <div class="flex bg-surface-200 p-1 rounded-lg border border-surface-100 mb-4">
+                    <button id="mode-single" class="flex-1 py-1.5 text-xs font-medium rounded shadow-sm bg-surface-400 text-white" onclick="setMode('single')">Sun Path</button>
+                    <button id="mode-range" class="flex-1 py-1.5 text-xs font-medium rounded text-gray-400 hover:text-white transition-colors" onclick="setMode('range')">Analysis</button>
+                </div>
+
+                <!-- SINGLE TIME MODE -->
+                <div id="ui-single" class="space-y-4">
+                    <div class="flex justify-between items-end">
+                        <h2 class="text-xs font-mono text-gray-400 uppercase tracking-wider">Date & Time</h2>
+                        <span id="sun-status" class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-surface-200 text-brand">Daytime</span>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-xs text-gray-500 mb-1">Date</label>
+                        <input type="date" id="date" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1.5 focus:border-brand focus:outline-none text-sm transition-colors" style="color-scheme: dark;">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <label class="text-gray-500">Time of Day</label>
+                            <span id="time-val" class="font-mono text-brand">12:00</span>
+                        </div>
+                        <input type="range" id="time" min="0" max="24" step="0.25" value="12" class="w-full accent-brand cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- RANGE / ANALYSIS MODE -->
+                <div id="ui-range" class="space-y-4 hidden">
+                    <h2 class="text-xs font-mono text-gray-400 uppercase tracking-wider">Ladybug Analysis</h2>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Start Date</label>
+                            <input type="date" id="start-date" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1 focus:border-brand text-xs" style="color-scheme: dark;">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">End Date</label>
+                            <input type="date" id="end-date" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1 focus:border-brand text-xs" style="color-scheme: dark;">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Start Time</label>
+                            <input type="time" id="start-time" value="09:00" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1 focus:border-brand text-xs" style="color-scheme: dark;">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">End Time</label>
+                            <input type="time" id="end-time" value="17:00" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1 focus:border-brand text-xs" style="color-scheme: dark;">
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <label class="text-gray-500">Day Step</label>
+                                <span id="dstepV" class="font-mono text-brand">1d</span>
+                            </div>
+                            <input type="range" id="dstep" min="1" max="30" step="1" value="1" class="w-full accent-brand cursor-pointer">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <label class="text-gray-500">Hour Step</label>
+                                <span id="hstepV" class="font-mono text-brand">0.5h</span>
+                            </div>
+                            <input type="range" id="hstep" min="0.25" max="4" step="0.25" value="0.5" class="w-full accent-brand cursor-pointer">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500 mb-1">Analysis Resolution</label>
+                            <select id="shadow-res" class="w-full bg-surface-200 border border-surface-100 rounded px-2 py-1.5 focus:border-brand text-xs">
+                                <option value="512">Rough (Fast)</option>
+                                <option value="1024">Medium</option>
+                                <option value="2048" selected>Fine (Standard)</option>
+                                <option value="4096">Super Fine (Slower)</option>
+                                <option value="8192">Ultra (Very Slow)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="btn-run-analysis" class="w-full py-2 bg-brand hover:bg-brand-hover text-surface-400 font-bold rounded shadow transition-colors flex justify-center items-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4"></i> Run Analysis
+                    </button>
+                    
+                    <div id="analysis-progress" class="hidden">
+                        <div class="flex justify-between text-xs mb-1 text-gray-400 font-mono">
+                            <span>GPU Computing...</span>
+                            <span id="progress-pct">0%</span>
+                        </div>
+                        <div class="w-full bg-surface-200 rounded-full h-1.5">
+                            <div id="progress-bar" class="bg-brand h-1.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </aside>
+
+    <!-- Main Canvas Area -->
+    <main class="flex-1 relative bg-surface-400">
+        <div id="canvas-container"></div>
+        
+        <!-- Legend (Hidden by default) -->
+        <div id="legend" class="absolute top-4 right-4 bg-surface-300/90 backdrop-blur border border-surface-100 rounded-lg p-3 hidden flex-col gap-2 pointer-events-none z-10">
+            <h3 class="text-xs font-mono text-gray-300 border-b border-surface-100 pb-1 mb-1">Sun Hours</h3>
+            <div class="flex items-center gap-3">
+                <div class="w-3 h-32 ladybug-gradient rounded shadow-inner"></div>
+                <div class="flex flex-col justify-between h-32 text-xs font-mono text-gray-400 py-0.5">
+                    <span id="leg-max">Max</span>
+                    <span id="leg-mid">Mid</span>
+                    <span id="leg-min">0 h</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overlay HUD -->
+        <div id="hud-single" class="absolute bottom-4 right-4 bg-surface-300/80 backdrop-blur border border-surface-100 rounded-lg p-3 text-xs font-mono text-gray-400 flex flex-col gap-1 pointer-events-none">
+            <div class="flex justify-between gap-4"><span>Sun Altitude:</span> <span id="hud-alt" class="text-white">0.0°</span></div>
+            <div class="flex justify-between gap-4"><span>Sun Azimuth:</span> <span id="hud-az" class="text-white">0.0°</span></div>
+        </div>
+        
+        <!-- Loading Overlay -->
+        <div id="loader" class="absolute inset-0 bg-surface-400/90 backdrop-blur z-50 flex flex-col items-center justify-center hidden">
+            <i data-lucide="loader-2" class="w-8 h-8 text-brand animate-spin mb-4"></i>
+            <p class="text-sm font-medium tracking-wide">Processing Geometry...</p>
+        </div>
+    </main>
+
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // --- Core State ---
+        let currentMode = 'single'; // 'single' | 'range'
+        let isAnalyzing = false;
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0b0d10);
+
+        const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 5000);
+        camera.position.set(150, 100, 150);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.01;
+
+        const tControls = new THREE.TransformControls(camera, renderer.domElement);
+        tControls.addEventListener('dragging-changed', function (event) {
+            controls.enabled = !event.value;
+        });
+        scene.add(tControls);
+
+        // --- Lighting ---
+        const ambientLight = new THREE.AmbientLight(0x404050, 0.4);
+        scene.add(ambientLight);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.3);
+        hemiLight.position.set(0, 200, 0);
+        scene.add(hemiLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 2.5);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 4096;
+        sunLight.shadow.mapSize.height = 4096;
+        sunLight.shadow.bias = -0.0005;
+        scene.add(sunLight);
+
+        const sunGeo = new THREE.SphereGeometry(5, 32, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xffddaa });
+        const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+        scene.add(sunMesh);
+
+        const planeGeo = new THREE.PlaneGeometry(2000, 2000);
+        const planeMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 1, metalness: 0 });
+        const plane = new THREE.Mesh(planeGeo, planeMat);
+        plane.rotation.x = -Math.PI / 2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+
+        const gridHelper = new THREE.GridHelper(2000, 100, 0x33405a, 0x1f2535);
+        scene.add(gridHelper);
+
+        const northDir = new THREE.Vector3(0, 0, -1);
+        const northOrigin = new THREE.Vector3(0, 0.5, 0);
+        const northArrow = new THREE.ArrowHelper(northDir, northOrigin, 100, 0xe84040, 20, 10);
+        scene.add(northArrow);
+
+        // --- Models & Materials ---
+        const models = { target: new THREE.Group(), context: new THREE.Group(), master: new THREE.Group() };
+        scene.add(models.master);
+        models.master.add(models.target);
+        models.master.add(models.context);
+
+        const materials = {
+            target: new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, roughness: 0.2, metalness: 0.1, side: THREE.DoubleSide 
+            }),
+            context: new THREE.MeshStandardMaterial({ 
+                color: 0x4a5568, roughness: 0.9, metalness: 0.1, transparent: true, opacity: 0.9, side: THREE.DoubleSide 
+            }),
+            // Specific material for analysis visualization
+            analysis: new THREE.MeshStandardMaterial({
+                color: 0xffffff, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide, vertexColors: true
+            })
+        };
+
+        const objLoader = new THREE.OBJLoader();
+
+        // --- UI Elements ---
+        const inputs = {
+            lat: document.getElementById('lat'),
+            lon: document.getElementById('lon'),
+            date: document.getElementById('date'),
+            time: document.getElementById('time'),
+            northOffset: document.getElementById('north-offset'),
+            startDate: document.getElementById('start-date'),
+            endDate: document.getElementById('end-date')
+        };
+        const displays = {
+            timeVal: document.getElementById('time-val'),
+            sunStatus: document.getElementById('sun-status'),
+            hudAlt: document.getElementById('hud-alt'),
+            hudAz: document.getElementById('hud-az')
+        };
+
+        // Initialize Dates
+        const today = new Date();
+        inputs.date.valueAsDate = today;
+        
+        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        inputs.startDate.valueAsDate = firstOfMonth;
+        
+        const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        inputs.endDate.valueAsDate = lastOfMonth;
+
+
+        // --- UI Modes & Toggles ---
+        function setMode(mode) {
+            currentMode = mode;
+            const btnSingle = document.getElementById('mode-single');
+            const btnRange = document.getElementById('mode-range');
+            const uiSingle = document.getElementById('ui-single');
+            const uiRange = document.getElementById('ui-range');
+            const legend = document.getElementById('legend');
+            const hudSingle = document.getElementById('hud-single');
+
+            if (mode === 'single') {
+                btnSingle.className = "flex-1 py-1.5 text-xs font-medium rounded shadow-sm bg-surface-400 text-white";
+                btnRange.className = "flex-1 py-1.5 text-xs font-medium rounded text-gray-400 hover:text-white transition-colors";
+                uiSingle.classList.remove('hidden');
+                uiRange.classList.add('hidden');
+                legend.classList.add('hidden');
+                hudSingle.classList.remove('hidden');
+                
+                // Reset lighting and materials
+                sunLight.visible = true;
+                sunMesh.visible = true;
+                models.target.traverse(c => { if(c.isMesh) c.material = materials.target; });
+                updateSun();
+            } else {
+                btnRange.className = "flex-1 py-1.5 text-xs font-medium rounded shadow-sm bg-surface-400 text-white";
+                btnSingle.className = "flex-1 py-1.5 text-xs font-medium rounded text-gray-400 hover:text-white transition-colors";
+                uiRange.classList.remove('hidden');
+                uiSingle.classList.add('hidden');
+                hudSingle.classList.add('hidden');
+                
+                // Hide single sun
+                sunLight.visible = false;
+                sunMesh.visible = false;
+            }
+        }
+
+        // --- Solar Logic ---
+        function formatTime(decimalHours) {
+            const hrs = Math.floor(decimalHours);
+            const mins = Math.floor((decimalHours - hrs) * 60);
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        }
+
+        function getSunVector(dateObj, lat, lon, northOffsetRad) {
+            const sunPos = SunCalc.getPosition(dateObj, lat, lon);
+            if (sunPos.altitude <= 0) return null; // Nighttime
+
+            const phi = sunPos.altitude; 
+            const theta = sunPos.azimuth + northOffsetRad;
+            
+            const x = Math.cos(phi) * -Math.sin(theta);
+            const y = Math.sin(phi);
+            const z = Math.cos(phi) * Math.cos(theta);
+
+            return new THREE.Vector3(x, y, z).normalize();
+        }
+
+        function updateSun() {
+            if (currentMode !== 'single') return;
+
+            const lat = parseFloat(inputs.lat.value);
+            const lon = parseFloat(inputs.lon.value);
+            const dateStr = inputs.date.value;
+            const timeVal = parseFloat(inputs.time.value);
+
+            displays.timeVal.textContent = formatTime(timeVal);
+
+            if (!dateStr || isNaN(lat) || isNaN(lon)) return;
+
+            const baseDate = new Date(dateStr + "T00:00:00");
+            const hrs = Math.floor(timeVal);
+            const mins = Math.floor((timeVal - hrs) * 60);
+            baseDate.setHours(hrs, mins, 0);
+
+            const sunPos = SunCalc.getPosition(baseDate, lat, lon);
+            const altDeg = (sunPos.altitude * 180 / Math.PI);
+            const azDeg = (sunPos.azimuth * 180 / Math.PI);
+            displays.hudAlt.textContent = altDeg.toFixed(1) + '°';
+            displays.hudAz.textContent = azDeg.toFixed(1) + '°';
+
+            const northOffsetDeg = parseFloat(inputs.northOffset.value) || 0;
+            const northOffsetRad = northOffsetDeg * Math.PI / 180;
+
+            const newDir = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), -northOffsetRad);
+            northArrow.setDirection(newDir);
+
+            const sunVec = getSunVector(baseDate, lat, lon, northOffsetRad);
+
+            if (!sunVec) {
+                sunLight.intensity = 0;
+                sunMesh.visible = false;
+                displays.sunStatus.textContent = "Night";
+                displays.sunStatus.className = "text-[10px] font-medium px-1.5 py-0.5 rounded bg-surface-200 text-gray-500";
+            } else {
+                const intensity = Math.min(2.5, Math.max(0.1, altDeg / 10));
+                sunLight.intensity = intensity;
+                sunMesh.visible = true;
+                displays.sunStatus.textContent = "Daytime";
+                displays.sunStatus.className = "text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand/10 text-brand";
+                
+                const distance = 400;
+                sunLight.position.copy(sunVec).multiplyScalar(distance);
+                sunMesh.position.copy(sunLight.position);
+                sunLight.lookAt(0, 0, 0);
+            }
+        }
+
+        // --- Ladybug Analysis Logic ---
+        function getLadybugColor(t) {
+            const colors = [
+                new THREE.Color(0x0000ff), // Blue
+                new THREE.Color(0x00ffff), // Cyan
+                new THREE.Color(0x00ff00), // Green
+                new THREE.Color(0xffff00), // Yellow
+                new THREE.Color(0xff0000)  // Red
+            ];
+            const p = t * (colors.length - 1);
+            const index = Math.floor(p);
+            const frac = p - index;
+            if (index >= colors.length - 1) return colors[colors.length - 1];
+            return colors[index].clone().lerp(colors[index + 1], frac);
+        }
+
+        function prepareAnalysisGeometry(offsetAmount) {
+            let analysisVertices = [];
+            
+            // Ensure all matrices reflect any Master/Target/Context transforms
+            models.master.updateMatrixWorld(true);
+            
+            models.target.traverse(child => {
+                if (child.isMesh) {
+                    child.material = materials.analysis;
+                    child.updateMatrixWorld();
+                    
+                    const geo = child.geometry;
+                    if (!geo.attributes.normal) geo.computeVertexNormals();
+
+                    const posAttr = geo.attributes.position;
+                    const normAttr = geo.attributes.normal;
+                    
+                    const colorArr = new Float32Array(posAttr.count * 3);
+                    geo.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+                    
+                    for (let i = 0; i < posAttr.count; i++) {
+                        const vertex = new THREE.Vector3().fromBufferAttribute(posAttr, i);
+                        vertex.applyMatrix4(child.matrixWorld);
+                        
+                        const normal = new THREE.Vector3().fromBufferAttribute(normAttr, i);
+                        const normalMatrix = new THREE.Matrix3().getNormalMatrix(child.matrixWorld);
+                        normal.applyMatrix3(normalMatrix).normalize();
+
+                        // Offset slightly along normal to prevent self-shadowing acne
+                        vertex.add(normal.clone().multiplyScalar(offsetAmount));
+
+                        analysisVertices.push({
+                            mesh: child,
+                            index: i,
+                            pos: vertex,
+                            normal: normal,
+                            hits: 0
+                        });
+                    }
+                }
+            });
+            return analysisVertices;
+        }
+
+        async function runAnalysis() {
+            if (isAnalyzing) return;
+            if (models.target.children.length === 0) {
+                alert("Please upload a Target model first.");
+                return;
+            }
+
+            isAnalyzing = true;
+            document.getElementById('analysis-progress').classList.remove('hidden');
+            document.getElementById('legend').classList.add('hidden');
+            const btn = document.getElementById('btn-run-analysis');
+            btn.classList.add('opacity-50', 'pointer-events-none');
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Analyzing...`;
+            lucide.createIcons();
+
+            const lat = parseFloat(inputs.lat.value);
+            const lon = parseFloat(inputs.lon.value);
+            const northOffsetRad = (parseFloat(inputs.northOffset.value) || 0) * Math.PI / 180;
+            
+            const startD = new Date(inputs.startDate.value + "T00:00:00");
+            const endD = new Date(inputs.endDate.value + "T00:00:00");
+            
+            const tStartStr = document.getElementById('start-time').value.split(':');
+            const tEndStr = document.getElementById('end-time').value.split(':');
+            const tStart = parseInt(tStartStr[0]) + parseInt(tStartStr[1])/60;
+            const tEnd = parseInt(tEndStr[0]) + parseInt(tEndStr[1])/60;
+            
+            const dStep = parseInt(document.getElementById('dstep').value);
+            const hStep = parseFloat(document.getElementById('hstep').value);
+
+            const sunRays = [];
+            for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + dStep)) {
+                for (let t = tStart; t <= tEnd; t += hStep) {
+                    const evalDate = new Date(d);
+                    const hrs = Math.floor(t);
+                    const mins = Math.floor((t - hrs) * 60);
+                    evalDate.setHours(hrs, mins, 0);
+
+                    const vec = getSunVector(evalDate, lat, lon, northOffsetRad);
+                    if (vec) sunRays.push(vec);
+                }
+            }
+
+            if (sunRays.length === 0) {
+                alert("No valid daytime hours in the selected range.");
+                cleanupAnalysisUI();
+                return;
+            }
+
+            // --- GPU HARDWARE ACCELERATION SETUP ---
+            models.master.updateMatrixWorld(true);
+            const box = new THREE.Box3();
+            box.setFromObject(models.target);
+            const ctxBox = new THREE.Box3().setFromObject(models.context);
+            if (!ctxBox.isEmpty()) box.union(ctxBox);
+
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
+
+            // Dynamically scale depth offset based on overall scene size (tightened for better self-shadowing)
+            const offsetAmount = maxDim * 0.0001; 
+            const analysisVertices = prepareAnalysisGeometry(offsetAmount);
+
+            // High-resolution depth buffer
+            const rtSize = parseInt(document.getElementById('shadow-res').value) || 2048; 
+            const rt = new THREE.WebGLRenderTarget(rtSize, rtSize, {
+                minFilter: THREE.NearestFilter,
+                magFilter: THREE.NearestFilter,
+                format: THREE.RGBAFormat
+            });
+            const depthMat = new THREE.MeshDepthMaterial({
+                depthPacking: THREE.RGBADepthPacking,
+                side: THREE.DoubleSide
+            });
+
+            // Cache old materials and apply DepthMaterial exclusively for shadow testing
+            const origMats = new Map();
+            [models.target, models.context].forEach(group => {
+                group.traverse(child => {
+                    if (child.isMesh) {
+                        origMats.set(child, child.material);
+                        child.material = depthMat;
+                    }
+                });
+            });
+
+            // Hide non-occluding scene props
+            const hideObjects = [plane, gridHelper, northArrow];
+            hideObjects.forEach(obj => obj.visible = false);
+
+            const oldSunLightVis = sunLight.visible;
+            const oldSunMeshVis = sunMesh.visible;
+            sunLight.visible = false;
+            sunMesh.visible = false;
+
+            // Prepare renderer background (white packs to maximum depth 1.0)
+            const oldClearColor = renderer.getClearColor(new THREE.Color());
+            const oldClearAlpha = renderer.getClearAlpha();
+            renderer.setClearColor(0xffffff, 1);
+
+            // Construct tightly bound sun camera
+            const sunCam = new THREE.OrthographicCamera(-maxDim, maxDim, maxDim, -maxDim, maxDim * 0.1, maxDim * 4);
+            const buffer = new Uint8Array(rtSize * rtSize * 4);
+
+            let rayIndex = 0;
+            const progressBar = document.getElementById('progress-bar');
+            const progressPct = document.getElementById('progress-pct');
+
+            // Asynchronous rendering loop
+            function processChunk() {
+                const startTime = performance.now();
+
+                // Process multiple rays per frame while leaving ~16ms headroom to keep browser responsive
+                while (rayIndex < sunRays.length && performance.now() - startTime < 30) {
+                    const rayDir = sunRays[rayIndex];
+
+                    // Orient sun camera
+                    sunCam.position.copy(center).add(rayDir.clone().multiplyScalar(maxDim * 2));
+                    sunCam.lookAt(center);
+                    sunCam.updateMatrixWorld();
+                    sunCam.updateProjectionMatrix();
+
+                    // Render depth from sun
+                    renderer.setRenderTarget(rt);
+                    renderer.clear();
+                    renderer.render(scene, sunCam);
+                    renderer.readRenderTargetPixels(rt, 0, 0, rtSize, rtSize, buffer); // GPU -> CPU Readback
+
+                    const projMat = new THREE.Matrix4().multiplyMatrices(sunCam.projectionMatrix, sunCam.matrixWorldInverse);
+
+                    // Map all vertices onto depth map
+                    for (let i = 0; i < analysisVertices.length; i++) {
+                        const v = analysisVertices[i];
+                        
+                        // Culling: If normal points away from sun, it's structurally shaded
+                        if (v.normal.dot(rayDir) < -0.05) continue;
+
+                        const vPos = v.pos.clone();
+                        vPos.applyMatrix4(projMat);
+
+                        // Skip if somehow outside frustum
+                        if (vPos.x < -1 || vPos.x > 1 || vPos.y < -1 || vPos.y > 1 || vPos.z < -1 || vPos.z > 1) continue;
+
+                        // Normalize Normalized Device Coordinates to Pixel Coordinates
+                        let px = Math.floor((vPos.x * 0.5 + 0.5) * rtSize);
+                        let py = Math.floor((vPos.y * 0.5 + 0.5) * rtSize);
+                        px = Math.max(0, Math.min(rtSize - 1, px));
+                        py = Math.max(0, Math.min(rtSize - 1, py));
+
+                        // Decode RGBADepthPacking format mathematically
+                        const idx = (py * rtSize + px) * 4;
+                        const r = buffer[idx] / 255;
+                        const g = buffer[idx+1] / 255;
+                        const b = buffer[idx+2] / 255;
+                        const a = buffer[idx+3] / 255;
+                        const sceneDepth = r + (g / 256) + (b / 65536) + (a / 16777216);
+
+                        const vertexDepth = vPos.z * 0.5 + 0.5;
+
+                        // Test occlusion (0.001 depth bias applied to prevent precision acne, allowing strict self-shadowing)
+                        if (vertexDepth <= sceneDepth + 0.001) {
+                            v.hits++;
+                        }
+                    }
+
+                    rayIndex++;
+                }
+
+                // Update UI Feedback
+                const pct = Math.floor((rayIndex / sunRays.length) * 100);
+                progressBar.style.width = `${pct}%`;
+                progressPct.textContent = `${pct}%`;
+
+                if (rayIndex < sunRays.length) {
+                    requestAnimationFrame(processChunk);
+                } else {
+                    // --- CLEANUP AND RESTORE ---
+                    hideObjects.forEach(obj => obj.visible = true);
+                    sunLight.visible = oldSunLightVis;
+                    sunMesh.visible = oldSunMeshVis;
+                    renderer.setClearColor(oldClearColor, oldClearAlpha);
+                    
+                    scene.traverse(child => {
+                        if (child.isMesh && origMats.has(child)) {
+                            child.material = origMats.get(child);
+                        }
+                    });
+
+                    renderer.setRenderTarget(null);
+                    rt.dispose();
+                    depthMat.dispose();
+
+                    applyAnalysisColors(analysisVertices, sunRays.length, dStep, hStep);
+                }
+            }
+
+            // Initialize rendering sequence
+            requestAnimationFrame(processChunk);
+        }
+
+        function applyAnalysisColors(analysisVertices, totalRays, dStep, hStep) {
+            let maxHits = 0;
+            analysisVertices.forEach(v => { if (v.hits > maxHits) maxHits = v.hits; });
+            
+            if (maxHits === 0) maxHits = 1;
+
+            analysisVertices.forEach(v => {
+                const ratio = v.hits / maxHits;
+                const c = getLadybugColor(ratio);
+                const colorsAttr = v.mesh.geometry.attributes.color;
+                colorsAttr.setXYZ(v.index, c.r, c.g, c.b);
+            });
+
+            models.target.traverse(child => {
+                if (child.isMesh) child.geometry.attributes.color.needsUpdate = true;
+            });
+
+            const maxHours = (maxHits * dStep * hStep).toFixed(1);
+            document.getElementById('leg-max').textContent = maxHours + ' h';
+            document.getElementById('leg-mid').textContent = (maxHours / 2).toFixed(1) + ' h';
+            document.getElementById('legend').classList.remove('hidden');
+            document.getElementById('legend').classList.add('flex');
+
+            cleanupAnalysisUI();
+        }
+
+        function cleanupAnalysisUI() {
+            isAnalyzing = false;
+            document.getElementById('analysis-progress').classList.add('hidden');
+            const btn = document.getElementById('btn-run-analysis');
+            btn.classList.remove('opacity-50', 'pointer-events-none');
+            btn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i> Run Analysis`;
+            lucide.createIcons();
+        }
+
+
+        // --- File Loading Logic ---
+        function toggleLoader(show) {
+            document.getElementById('loader').style.display = show ? 'flex' : 'none';
+        }
+
+        function adjustShadowCamera(loadedType) {
+            const box = new THREE.Box3();
+            box.setFromObject(models.target);
+            
+            const contextBox = new THREE.Box3().setFromObject(models.context);
+            if (!contextBox.isEmpty()) box.union(contextBox);
+
+            if (box.isEmpty()) return;
+
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+
+            const maxDim = Math.max(size.x, size.y, size.z) * 1.5;
+            
+            sunLight.shadow.camera.left = -maxDim;
+            sunLight.shadow.camera.right = maxDim;
+            sunLight.shadow.camera.top = maxDim;
+            sunLight.shadow.camera.bottom = -maxDim;
+            sunLight.shadow.camera.near = 0.5;
+            sunLight.shadow.camera.far = Math.max(2000, maxDim * 4);
+            sunLight.shadow.camera.updateProjectionMatrix();
+
+            const focusBox = loadedType ? new THREE.Box3().setFromObject(models[loadedType]) : box;
+            if (!focusBox.isEmpty()) {
+                const focusSize = new THREE.Vector3();
+                focusBox.getSize(focusSize);
+                const focusCenter = new THREE.Vector3();
+                focusBox.getCenter(focusCenter);
+
+                const focusMaxDim = Math.max(focusSize.x, focusSize.y, focusSize.z) * 1.5;
+                camera.position.set(focusCenter.x + focusMaxDim, focusCenter.y + focusMaxDim, focusCenter.z + focusMaxDim);
+                controls.target.copy(focusCenter);
+                
+                camera.far = Math.max(5000, maxDim * 5);
+                camera.updateProjectionMatrix();
+            }
+        }
+
+        function loadModel(file, type) {
+            if (!file) return;
+            toggleLoader(true);
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const contents = e.target.result;
+                    const object = objLoader.parse(contents);
+
+                    while(models[type].children.length > 0){ 
+                        models[type].remove(models[type].children[0]); 
+                    }
+
+                    object.traverse((child) => {
+                        if (child.isMesh) {
+                            child.material = materials[type];
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            child.geometry.computeVertexNormals();
+                        }
+                    });
+
+                    models[type].add(object);
+                    
+                    document.getElementById(`label-${type}`).textContent = file.name;
+                    document.getElementById(`label-${type}`).classList.add('text-brand');
+
+                    adjustShadowCamera(type);
+                    
+                    if(currentMode === 'range') document.getElementById('legend').classList.add('hidden');
+
+                } catch (error) {
+                    console.error("Error parsing OBJ:", error);
+                    alert("Failed to parse the OBJ file.");
+                } finally {
+                    toggleLoader(false);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function clearModels() {
+            tControls.detach();
+            toggleTransform(null);
+            
+            ['target', 'context'].forEach(type => {
+                while(models[type].children.length > 0){ 
+                    models[type].remove(models[type].children[0]); 
+                }
+                const label = document.getElementById(`label-${type}`);
+                label.textContent = `Upload ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+                label.classList.remove('text-brand');
+                document.getElementById(`input-${type}`).value = '';
+            });
+
+            // Reset master transform
+            models.master.position.set(0, 0, 0);
+            models.master.rotation.set(0, 0, 0);
+            models.master.scale.set(1, 1, 1);
+
+            controls.target.set(0,0,0);
+            camera.position.set(150, 100, 150);
+            document.getElementById('legend').classList.add('hidden');
+        }
+
+        // --- Transform Handlers ---
+        let activeTransformType = null;
+        
+        function toggleTransform(type) {
+            const modesDiv = document.getElementById('transform-modes');
+            const btns = {
+                target: document.getElementById('btn-sel-target'),
+                context: document.getElementById('btn-sel-context'),
+                master: document.getElementById('btn-sel-master')
+            };
+
+            if (activeTransformType === type || type === null) {
+                tControls.detach();
+                activeTransformType = null;
+                modesDiv.classList.add('opacity-50', 'pointer-events-none');
+                Object.values(btns).forEach(btn => btn.classList.remove('border-brand', 'text-brand'));
+            } else {
+                activeTransformType = type;
+                tControls.attach(models[type]);
+                modesDiv.classList.remove('opacity-50', 'pointer-events-none');
+                
+                Object.keys(btns).forEach(k => {
+                    if (k === type) {
+                        btns[k].classList.add('border-brand', 'text-brand');
+                    } else {
+                        btns[k].classList.remove('border-brand', 'text-brand');
+                    }
+                });
+            }
+        }
+
+        function setTransformMode(mode) {
+            tControls.setMode(mode);
+            const modes = ['translate', 'rotate', 'scale'];
+            modes.forEach(m => {
+                const btn = document.getElementById(`btn-mode-${m}`);
+                if (m === mode) {
+                    btn.classList.add('border-brand', 'text-brand');
+                    btn.classList.remove('border-surface-100', 'text-gray-400');
+                } else {
+                    btn.classList.remove('border-brand', 'text-brand');
+                    btn.classList.add('border-surface-100', 'text-gray-400');
+                }
+            });
+        }
+
+        // --- Event Listeners ---
+        Object.values(inputs).forEach(input => {
+            if (input.id !== 'start-date' && input.id !== 'end-date') {
+                input.addEventListener('input', updateSun);
+            }
+        });
+
+        // Analysis Step Sliders Update Handlers
+        document.getElementById('hstep').addEventListener('input', function() {
+            document.getElementById('hstepV').textContent = this.value + 'h';
+        });
+        document.getElementById('dstep').addEventListener('input', function() {
+            document.getElementById('dstepV').textContent = this.value + 'd';
+        });
+
+        document.getElementById('btn-run-analysis').addEventListener('click', runAnalysis);
+        document.getElementById('btn-clear').addEventListener('click', clearModels);
+
+        ['target', 'context'].forEach(type => {
+            const input = document.getElementById(`input-${type}`);
+            const dropzone = document.getElementById(`drop-${type}`);
+
+            input.addEventListener('change', (e) => loadModel(e.target.files[0], type));
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragover');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    loadModel(e.dataTransfer.files[0], type);
+                }
+            });
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        updateSun();
+        animate();
+
+    </script>
+</body>
+</html>
