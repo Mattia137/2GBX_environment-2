@@ -484,32 +484,56 @@ function loadAllGLBs(){
 
       this.camera.projectionMatrix = m.multiply(l);
 
-      // Use map.getFreeCameraOptions() to extract true georeferenced camera state
-      // (Position is in mercator coordinates x,y,z and orientation is a quaternion)
-      const freeCam = map.getFreeCameraOptions();
-      let lInv, lInvRot;
+      // Re-implement getFreeCameraOptions() manually for MapLibre GL JS 3.x
+      // MapLibre doesn't expose the camera directly, but we can compute it using map.transform
+      const tr = map.transform;
+      const scale = tr.scale;
+      const pitch = tr.pitch * Math.PI / 180;
+      const bearing = tr.bearing * Math.PI / 180;
 
-      if (freeCam && freeCam.position && freeCam.orientation) {
-        // We broadcast raw mercator coordinates so all clients are anchored perfectly to the exact same global coordinate space.
-        // Round to 8 decimal places (approx millimeter precision in mercator) to reduce Liveblocks payload
-        this.currentCamPos = {
-          x: Number(freeCam.position.x.toFixed(8)),
-          y: Number(freeCam.position.y.toFixed(8)),
-          z: Number(freeCam.position.z.toFixed(8))
-        };
-        this.currentCamRot = {
-          x: Number(freeCam.orientation.x.toFixed(8)),
-          y: Number(freeCam.orientation.y.toFixed(8)),
-          z: Number(freeCam.orientation.z.toFixed(8)),
-          w: Number(freeCam.orientation.w.toFixed(8))
-        };
+      // The map center in mercator coordinates
+      const mcCenter = maplibregl.MercatorCoordinate.fromLngLat(map.getCenter(), tr.cameraElevation || 0);
 
-        // We still need lInv and lInvRot to position remote meshes in our local scene space
-        lInv = new THREE.Matrix4().copy(l).invert();
-        lInvRot = new THREE.Quaternion();
-        // Extract pure rotation quaternion via decompose, since setFromRotationMatrix fails on matrices with extreme non-uniform scaling
-        lInv.decompose(new THREE.Vector3(), lInvRot, new THREE.Vector3());
-      }
+      // Distance from the center point to the camera in mercator units
+      const z0 = tr.cameraElevation || 0;
+      const dist = tr.cameraToCenterDistance / scale;
+
+      // 1. Camera height above ground
+      const camZ = dist * Math.cos(pitch) + z0;
+
+      // 2. Camera ground distance to center
+      const xyDist = dist * Math.sin(pitch);
+
+      // 3. X and Y offsets. Bearing is measured clockwise from North.
+      // North is -Y in Mercator (top left is 0,0).
+      // So if bearing is 0 (looking North), the camera must be South (+Y) of the center.
+      const camX = mcCenter.x - Math.sin(bearing) * xyDist;
+      const camY = mcCenter.y + Math.cos(bearing) * xyDist;
+
+      // Orientation is derived from MapLibre pitch and bearing
+      // Mapbox equivalent orientation is ZYX euler: Z (-bearing), X (pitch)
+      // Bearing is clockwise, but Three.js uses counter-clockwise rotation, so we use -bearing
+      const camQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, -bearing, 'ZYX'));
+
+      // We broadcast raw mercator coordinates so all clients are anchored perfectly to the exact same global coordinate space.
+      // Round to 8 decimal places (approx millimeter precision in mercator) to reduce Liveblocks payload
+      this.currentCamPos = {
+        x: Number(camX.toFixed(8)),
+        y: Number(camY.toFixed(8)),
+        z: Number(camZ.toFixed(8))
+      };
+      this.currentCamRot = {
+        x: Number(camQuat.x.toFixed(8)),
+        y: Number(camQuat.y.toFixed(8)),
+        z: Number(camQuat.z.toFixed(8)),
+        w: Number(camQuat.w.toFixed(8))
+      };
+
+      // We still need lInv and lInvRot to position remote meshes in our local scene space
+      let lInv = new THREE.Matrix4().copy(l).invert();
+      let lInvRot = new THREE.Quaternion();
+      // Extract pure rotation quaternion via decompose, since setFromRotationMatrix fails on matrices with extreme non-uniform scaling
+      lInv.decompose(new THREE.Vector3(), lInvRot, new THREE.Vector3());
 
       // Interpolate remote players
       if (remotePlayerMeshes && remotePlayerMeshes.size > 0 && lInv && lInvRot) {
