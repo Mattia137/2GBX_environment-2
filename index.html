@@ -426,6 +426,7 @@ async function initMap(){
     const res=await fetch(`${VERCEL_API}/api/get-style`);if(!res.ok)throw new Error(`API ${res.status}`);
     let style=await res.json();style=cleanStyle(style);
     map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:75});
+    window.map = map;
     map.on('load',()=>{
       const src=Object.keys(map.getStyle().sources).find(k=>map.getStyle().sources[k].type==='vector')||'openmaptiles';
 
@@ -447,11 +448,11 @@ async function initMap(){
       // Ensure `excludePolygon` is available globally for the filter to use.
       // The `within` operator requires a valid GeoJSON object to be provided directly.
       // However, MapLibre GL JS `within` operator expects a GeoJSON Polygon or MultiPolygon *geometry* or *feature*.
-
+      
       // MapLibre's `within` operator wasn't finding '!' as a valid operator in older specs
       // wait, `!` is NOT a valid top-level operator in some old styles, but wait, `!` is valid.
       // Let's use `==` with `within` like: `["==", ["within", excludePolygon], false]` if `!` fails,
-      // But `!` is a valid expression. Let's check the error: `expected one of [...], "!" found` inside `['all', currentFilter, newFilter]`.
+      // But `!` is a valid expression. Let's check the error: `expected one of [...], "!" found` inside `['all', currentFilter, newFilter]`. 
       // This happens when the currentFilter is an older array filter and `!` is not recognized in legacy filter context.
       // Mapbox/MapLibre has deprecated legacy filters but they still exist in mapbox styles.
       // If we mix expression filters (`['!', ...]`) with legacy filters (e.g., `['==', 'extrude', 'true']`), it crashes because 'all' requires all children to be expressions or all legacy.
@@ -466,15 +467,21 @@ async function initMap(){
       for(let i=-gc;i<=gc;i++){const o=i*gs/gc;gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs+o,SITE.lat-gs],[SITE.lng-gs+o,SITE.lat+gs]]}});gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs,SITE.lat-gs+o],[SITE.lng+gs,SITE.lat-gs+o]]}});}
       map.addSource('grid-src',{type:'geojson',data:gf});
       map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
-
+      
       // Apply filter to all existing building layers
       const layers = map.getStyle().layers;
       layers.forEach(layer => {
-        if (layer.id.includes('building') || layer['source-layer'] === 'building') {
-          const currentFilter = map.getFilter(layer.id);
+        if (layer.id.includes('building') || layer.id.includes('Building') || layer['source-layer'] === 'building') {
+          let currentFilter = map.getFilter(layer.id);
           const newFilter = ['!', ['within', excludePolygon]];
-
+          
           if (currentFilter) {
+            // Convert legacy '!has' filter to expression before combining with 'all'
+            // MapLibre throws an error if legacy filters are combined with expressions like 'within'
+            if (Array.isArray(currentFilter) && currentFilter[0] === '!has') {
+              currentFilter = ['!', ['has', currentFilter[1]]];
+            }
+            
             // Attempt to combine existing filter with new filter using 'all'
             // If current filter is an expression starting with 'all', append to it
             if (Array.isArray(currentFilter) && currentFilter[0] === 'all') {
@@ -488,25 +495,9 @@ async function initMap(){
         }
       });
 
-      // Buildings
-      map.addLayer({
-        id:'3d-buildings',
-        source:src,
-        'source-layer':'building',
-        type:'fill-extrusion',
-        minzoom:13,
-        filter: ['!', ['within', excludePolygon]],
-        paint:{'fill-extrusion-color':PARAMS.buildingColor,'fill-extrusion-height':['get','render_height'],'fill-extrusion-base':['get','render_min_height'],'fill-extrusion-opacity':PARAMS.buildingOpacity}
-      });
-      map.addLayer({
-        id:'3d-buildings-outline',
-        source:src,
-        'source-layer':'building',
-        type:'line',
-        minzoom:14,
-        filter: ['!', ['within', excludePolygon]],
-        paint:{'line-color':'rgba(255,255,255,0.15)','line-width':0.5}
-      });
+      // Note: Custom '3d-buildings' and '3d-buildings-outline' layers have been removed
+      // in favor of the high-resolution MapTiler 'Building 3D' and 'Building' layers.
+
       // Fog
       if(map.setFog) map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
       addSiteMarker();updateSun();
@@ -862,7 +853,7 @@ function toggleShadows(el){
 /* ═══ LAYERS ═══ */
 function toggleLayer(el){
   el.classList.toggle('on');const l=el.dataset.layer;layerState[l]=!layerState[l];
-  if(l==='buildings'&&map){const v=layerState[l]?'visible':'none';['3d-buildings','3d-buildings-outline'].forEach(i=>{if(map.getLayer(i))map.setLayoutProperty(i,'visibility',v)})}
+  if(l==='buildings'&&map){const v=layerState[l]?'visible':'none';['Building 3D','Building'].forEach(i=>{if(map.getLayer(i))map.setLayoutProperty(i,'visibility',v)})}
   if(l==='transit'){transitVisible=layerState[l];simMarkers.forEach(o=>o.marker.getElement().style.display=transitVisible?'block':'none');flightMarkers.forEach(f=>f.marker.getElement().style.display=transitVisible?'block':'none')}
   if(l==='grid'&&map&&map.getLayer('ground-grid'))map.setLayoutProperty('ground-grid','visibility',layerState[l]?'visible':'none');
   if(l==='glb'&&map&&map.getLayer('glb-models'))map.setLayoutProperty('glb-models','visibility',layerState[l]?'visible':'none');
