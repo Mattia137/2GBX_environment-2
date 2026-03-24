@@ -430,69 +430,66 @@ async function initMap(){
     map.on('load',()=>{
       const src=Object.keys(map.getStyle().sources).find(k=>map.getStyle().sources[k].type==='vector')||'openmaptiles';
 
-      // Cut out area for High-res Geometry
-      const excludePolygon = {
-        "type": "Feature",
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [-74.0057903, 40.7572988],
-            [-73.9991393, 40.7546143],
-            [-74.0027385, 40.7496871],
-            [-74.0107127, 40.7527668],
-            [-74.0057903, 40.7572988]
-          ]]
-        }
-      };
-
-      // Ensure `excludePolygon` is available globally for the filter to use.
-      // The `within` operator requires a valid GeoJSON object to be provided directly.
-      // However, MapLibre GL JS `within` operator expects a GeoJSON Polygon or MultiPolygon *geometry* or *feature*.
-
-      // MapLibre's `within` operator wasn't finding '!' as a valid operator in older specs
-      // wait, `!` is NOT a valid top-level operator in some old styles, but wait, `!` is valid.
-      // Let's use `==` with `within` like: `["==", ["within", excludePolygon], false]` if `!` fails,
-      // But `!` is a valid expression. Let's check the error: `expected one of [...], "!" found` inside `['all', currentFilter, newFilter]`.
-      // This happens when the currentFilter is an older array filter and `!` is not recognized in legacy filter context.
-      // Mapbox/MapLibre has deprecated legacy filters but they still exist in mapbox styles.
-      // If we mix expression filters (`['!', ...]`) with legacy filters (e.g., `['==', 'extrude', 'true']`), it crashes because 'all' requires all children to be expressions or all legacy.
-      // We must check if currentFilter is a legacy filter and wrap it or just use legacy syntax?
-      // Actually `within` is an expression.
-      // Let's use maplibregl's filter conversion or just drop the legacy filter if we can't merge them.
-      // Or we can convert currentFilter to an expression if it's not.
-      // Actually, if we use `['!', ['within', excludePolygon]]` as an expression, it's valid.
-
       // Grid
       const gf={type:'FeatureCollection',features:[]};const gs=PARAMS.gridSize,gc=PARAMS.gridCount;
       for(let i=-gc;i<=gc;i++){const o=i*gs/gc;gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs+o,SITE.lat-gs],[SITE.lng-gs+o,SITE.lat+gs]]}});gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs,SITE.lat-gs+o],[SITE.lng+gs,SITE.lat-gs+o]]}});}
       map.addSource('grid-src',{type:'geojson',data:gf});
       map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
 
-      // Apply filter to all existing building layers
-      const layers = map.getStyle().layers;
-      layers.forEach(layer => {
-        if (layer.id.includes('building') || layer.id.includes('Building') || layer['source-layer'] === 'building') {
-          let currentFilter = map.getFilter(layer.id);
-          const newFilter = ['!', ['within', excludePolygon]];
+      // Load bounding box and apply clipping filter to buildings
+      new THREE.GLTFLoader().load(REPO_BASE + 'bounding_box.glb', (gltf) => {
+        const box = new THREE.Box3().setFromObject(gltf.scene);
+        const mc = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
+        const mScale = mc.meterInMercatorCoordinateUnits();
 
-          if (currentFilter) {
-            // Convert legacy '!has' filter to expression before combining with 'all'
-            // MapLibre throws an error if legacy filters are combined with expressions like 'within'
-            if (Array.isArray(currentFilter) && currentFilter[0] === '!has') {
-              currentFilter = ['!', ['has', currentFilter[1]]];
-            }
+        // Z in GLB represents Mercator Y
+        const x_min = mc.x + box.min.x * mScale;
+        const x_max = mc.x + box.max.x * mScale;
+        const y_min = mc.y + box.min.z * mScale;
+        const y_max = mc.y + box.max.z * mScale;
 
-            // Attempt to combine existing filter with new filter using 'all'
-            // If current filter is an expression starting with 'all', append to it
-            if (Array.isArray(currentFilter) && currentFilter[0] === 'all') {
-              map.setFilter(layer.id, [...currentFilter, newFilter]);
-            } else {
-              map.setFilter(layer.id, ['all', currentFilter, newFilter]);
-            }
-          } else {
-            map.setFilter(layer.id, newFilter);
+        const coords = [
+          new maplibregl.MercatorCoordinate(x_min, y_min, 0).toLngLat(),
+          new maplibregl.MercatorCoordinate(x_max, y_min, 0).toLngLat(),
+          new maplibregl.MercatorCoordinate(x_max, y_max, 0).toLngLat(),
+          new maplibregl.MercatorCoordinate(x_min, y_max, 0).toLngLat(),
+          new maplibregl.MercatorCoordinate(x_min, y_min, 0).toLngLat()
+        ];
+
+        const excludePolygon = {
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [[
+              [coords[0].lng, coords[0].lat],
+              [coords[1].lng, coords[1].lat],
+              [coords[2].lng, coords[2].lat],
+              [coords[3].lng, coords[3].lat],
+              [coords[4].lng, coords[4].lat]
+            ]]
           }
-        }
+        };
+
+        const layers = map.getStyle().layers;
+        layers.forEach(layer => {
+          if (layer.id.includes('building') || layer.id.includes('Building') || layer['source-layer'] === 'building') {
+            let currentFilter = map.getFilter(layer.id);
+            const newFilter = ['!', ['within', excludePolygon]];
+
+            if (currentFilter) {
+              if (Array.isArray(currentFilter) && currentFilter[0] === '!has') {
+                currentFilter = ['!', ['has', currentFilter[1]]];
+              }
+              if (Array.isArray(currentFilter) && currentFilter[0] === 'all') {
+                map.setFilter(layer.id, [...currentFilter, newFilter]);
+              } else {
+                map.setFilter(layer.id, ['all', currentFilter, newFilter]);
+              }
+            } else {
+              map.setFilter(layer.id, newFilter);
+            }
+          }
+        });
       });
 
       // Note: Custom '3d-buildings' and '3d-buildings-outline' layers have been removed
