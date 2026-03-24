@@ -5,6 +5,7 @@
 <title>ALLSPARK // HUDSON YARDS</title>
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -428,6 +429,54 @@ async function initMap(){
     map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:75});
     window.map = map;
     map.on('load',()=>{
+
+      // Remove MapTiler 3D buildings within the designated bounding box.
+      // We use turf.js to check intersection since MapLibre's 'within' filter
+      // only culls if the entire feature is within the polygon, which fails
+      // for large partially intersecting objects like the "vessel".
+      let hasCulledIntersecting = false;
+      map.on('idle', () => {
+        if (hasCulledIntersecting) return;
+        try {
+          const excludePolygon = turf.polygon([[
+            [-74.00282470725514, 40.75471465945802],
+            [-74.00010834311145, 40.75471465945802],
+            [-74.00010834311145, 40.75235313171358],
+            [-74.00282470725514, 40.75235313171358],
+            [-74.00282470725514, 40.75471465945802]
+          ]]);
+
+          const features = map.queryRenderedFeatures({ layers: ['Building 3D', 'Building'] });
+          const hiddenArray = [];
+
+          for (const feature of features) {
+            if (feature.geometry && feature.geometry.type === 'Polygon' && feature.id !== undefined) {
+              if (turf.booleanIntersects(excludePolygon, feature)) {
+                hiddenArray.push(feature.id);
+              }
+            }
+          }
+
+          if (hiddenArray.length > 0) {
+            const style = map.getStyle();
+            if (style && style.layers) {
+              for (const layer of style.layers) {
+                if (layer.id === 'Building 3D' || layer.id === 'Building') {
+                  const baseFilters = layer.id === 'Building 3D'
+                    ? ['all', ['!', ['has', 'hide_3d']], ['!', ['has', 'render_height']]]
+                    : ['all', ['!', ['has', 'hide_3d']]];
+
+                  const newFilter = ['all', ...baseFilters.slice(1), ['!', ['in', ['id'], ['literal', hiddenArray]]]];
+                  map.setFilter(layer.id, newFilter);
+                }
+              }
+            }
+          }
+          hasCulledIntersecting = true;
+        } catch (err) {
+          console.error('Error computing intersecting buildings:', err);
+        }
+      });
       const src=Object.keys(map.getStyle().sources).find(k=>map.getStyle().sources[k].type==='vector')||'openmaptiles';
 
       // Cut out area for High-res Geometry
@@ -436,11 +485,11 @@ async function initMap(){
         "geometry": {
           "type": "Polygon",
           "coordinates": [[
-            [-74.00925201451321, 40.75731529156886],
-            [-73.99911381826284, 40.75731529156886],
-            [-73.99911381826284, 40.74963535038421],
-            [-74.00925201451321, 40.74963535038421],
-            [-74.00925201451321, 40.75731529156886]
+            [-74.0057903, 40.7572988],
+            [-73.9991393, 40.7546143],
+            [-74.0027385, 40.7496871],
+            [-74.0107127, 40.7527668],
+            [-74.0057903, 40.7572988]
           ]]
         }
       };
