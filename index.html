@@ -432,11 +432,11 @@ async function initMap(){
       const excludePolygon = {
         "type": "Polygon",
         "coordinates": [[
-          [-74.00925201451321, 40.75731529156886],
-          [-73.99911381826284, 40.75731529156886],
-          [-73.99911381826284, 40.74963535038421],
-          [-74.00925201451321, 40.74963535038421],
-          [-74.00925201451321, 40.75731529156886]
+          [-74.0057903, 40.7572988],
+          [-73.9991393, 40.7546143],
+          [-74.0027385, 40.7496871],
+          [-74.0107127, 40.7527668],
+          [-74.0057903, 40.7572988]
         ]]
       };
 
@@ -445,6 +445,20 @@ async function initMap(){
       for(let i=-gc;i<=gc;i++){const o=i*gs/gc;gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs+o,SITE.lat-gs],[SITE.lng-gs+o,SITE.lat+gs]]}});gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs,SITE.lat-gs+o],[SITE.lng+gs,SITE.lat-gs+o]]}});}
       map.addSource('grid-src',{type:'geojson',data:gf});
       map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
+      // Apply filter to all existing building layers
+      const layers = map.getStyle().layers;
+      layers.forEach(layer => {
+        if (layer.id.includes('building') || layer['source-layer'] === 'building') {
+          const currentFilter = map.getFilter(layer.id);
+          const newFilter = ['!', ['within', excludePolygon]];
+          if (currentFilter) {
+            map.setFilter(layer.id, ['all', currentFilter, newFilter]);
+          } else {
+            map.setFilter(layer.id, newFilter);
+          }
+        }
+      });
+
       // Buildings
       map.addLayer({
         id:'3d-buildings',
