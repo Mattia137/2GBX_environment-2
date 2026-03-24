@@ -8,6 +8,7 @@
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
@@ -433,19 +434,13 @@ async function initMap(){
 
       // Cut out area for High-res Geometry
       // Calculated from the base vertices of the bounding_box.glb file.
-      const excludePolygon = {
-        "type": "Feature",
-        "geometry": {
-          "type": "Polygon",
-          "coordinates": [[
-            [-74.00561857508424, 40.75731190275977],
-            [-73.99912223957497, 40.75456178563417],
-            [-74.00275276933448, 40.74964054477445],
-            [-74.0092491053866, 40.752390865530714],
-            [-74.00561857508424, 40.75731190275977]
-          ]]
-        }
-      };
+      const excludePolygon = turf.polygon([[
+        [-74.00561857508424, 40.75731190275977],
+        [-73.99912223957497, 40.75456178563417],
+        [-74.00275276933448, 40.74964054477445],
+        [-74.0092491053866, 40.752390865530714],
+        [-74.00561857508424, 40.75731190275977]
+      ]]);
 
       // Grid
       const gf={type:'FeatureCollection',features:[]};const gs=PARAMS.gridSize,gc=PARAMS.gridCount;
@@ -453,39 +448,116 @@ async function initMap(){
       map.addSource('grid-src',{type:'geojson',data:gf});
       map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
       
-      // Apply filter to all existing building layers
-      const layers = map.getStyle().layers;
-      layers.forEach(layer => {
-        if (layer.id.includes('building') || layer.id.includes('Building') || layer['source-layer'] === 'building') {
-          let currentFilter = map.getFilter(layer.id);
-          const newFilter = ['!', ['within', excludePolygon]];
-          
-          if (currentFilter) {
-            // Convert legacy '!has' filter to expression before combining with 'all'
-            // MapLibre throws an error if legacy filters are combined with expressions like 'within'
-            if (Array.isArray(currentFilter) && currentFilter[0] === '!has') {
-              currentFilter = ['!', ['has', currentFilter[1]]];
-            }
-            // Add handler for positive 'has' check as well for completeness
-            else if (Array.isArray(currentFilter) && currentFilter[0] === 'has') {
-              currentFilter = ['has', currentFilter[1]];
-            }
-            
-            // Attempt to combine existing filter with new filter using 'all'
-            // If current filter is an expression starting with 'all', append to it
-            if (Array.isArray(currentFilter) && currentFilter[0] === 'all') {
-              map.setFilter(layer.id, [...currentFilter, newFilter]);
-            } else {
-              map.setFilter(layer.id, ['all', currentFilter, newFilter]);
-            }
-          } else {
-            map.setFilter(layer.id, newFilter);
-          }
+      const buildingLayers = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building');
+
+      // Store original filters to combine them properly
+      const originalFilters = {};
+      buildingLayers.forEach(layer => {
+        let currentFilter = map.getFilter(layer.id);
+        if (currentFilter) {
+          if (Array.isArray(currentFilter) && currentFilter[0] === '!has') currentFilter = ['!', ['has', currentFilter[1]]];
+          else if (Array.isArray(currentFilter) && currentFilter[0] === 'has') currentFilter = ['has', currentFilter[1]];
         }
+        originalFilters[layer.id] = currentFilter;
       });
 
-      // Note: Custom '3d-buildings' and '3d-buildings-outline' layers have been removed
-      // in favor of the high-resolution MapTiler 'Building 3D' and 'Building' layers.
+      const hiddenIds = new Set();
+      // For features without IDs, we keep track of their 'render_height' and 'render_min_height' as a composite signature
+      const hiddenSignatures = [];
+
+      let updateTimeout = null;
+      const updateBuildingFilter = () => {
+        if (updateTimeout) clearTimeout(updateTimeout);
+        updateTimeout = setTimeout(() => {
+          const features = map.queryRenderedFeatures({ layers: buildingLayers.map(l => l.id) });
+          let newlyHidden = false;
+          
+          for (const feature of features) {
+            const hasId = feature.id != null;
+
+            if (hasId && hiddenIds.has(feature.id)) continue;
+
+            // Signature fallback for missing IDs (specifically targeting MapTiler's 3D buildings)
+            let signature = null;
+            if (!hasId) {
+              const h = feature.properties.render_height;
+              const mh = feature.properties.render_min_height;
+              if (h !== undefined) {
+                signature = { h, mh: mh || 0 };
+                // Skip if we already hid this signature
+                if (hiddenSignatures.some(s => s.h === signature.h && s.mh === signature.mh)) continue;
+              } else {
+                continue; // Cannot identify feature reliably
+              }
+            }
+            
+            let intersects = false;
+            try {
+              if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
+                intersects = turf.booleanIntersects(feature, excludePolygon);
+              }
+            } catch (e) {
+              // Ignore intersection errors
+            }
+
+            if (intersects) {
+              if (hasId) {
+                hiddenIds.add(feature.id);
+              } else if (signature) {
+                hiddenSignatures.push(signature);
+              }
+              newlyHidden = true;
+            }
+          }
+
+          if (newlyHidden) {
+            const hiddenArray = Array.from(hiddenIds);
+
+            // Build the exclusion filters
+            const filters = [];
+
+            // 1. Exclude by ID
+            if (hiddenArray.length > 0) {
+              filters.push(['!', ['in', ['id'], ['literal', hiddenArray]]]);
+            }
+
+            // 2. Exclude by signature (heights) for missing IDs
+            hiddenSignatures.forEach(sig => {
+              filters.push(['!', ['all',
+                ['==', ['get', 'render_height'], sig.h],
+                ['==', ['coalesce', ['get', 'render_min_height'], 0], sig.mh]
+              ]]);
+            });
+
+            if (filters.length === 0) return;
+
+            const excludeFilter = filters.length === 1 ? filters[0] : ['all', ...filters];
+
+            buildingLayers.forEach(layer => {
+              const currentFilter = originalFilters[layer.id];
+              if (currentFilter) {
+                if (Array.isArray(currentFilter) && currentFilter[0] === 'all') {
+                  map.setFilter(layer.id, [...currentFilter, excludeFilter]);
+                } else {
+                  map.setFilter(layer.id, ['all', currentFilter, excludeFilter]);
+                }
+              } else {
+                map.setFilter(layer.id, excludeFilter);
+              }
+            });
+          }
+        }, 100);
+      };
+
+      map.on('moveend', updateBuildingFilter);
+      map.on('sourcedata', (e) => {
+        if (e.isSourceLoaded && e.sourceId !== 'grid-src') {
+          updateBuildingFilter();
+        }
+      });
+      if (map.isStyleLoaded()) {
+        updateBuildingFilter();
+      }
 
       // Fog
       if(map.setFog) map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
