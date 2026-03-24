@@ -205,7 +205,8 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sun-row"><div style="flex:1"><div class="sun-label">HOUR</div><input type="range" id="sun-hour" min="0" max="23" value="14" style="width:100%;accent-color:rgba(255,255,255,.3)"></div>
     <div style="width:40px;text-align:right"><span id="sun-hour-val" style="font-size:9px;color:var(--t1)">14:00</span></div></div>
     <div class="dr" style="margin-top:4px"><span class="l">AZIMUTH</span><span class="v hi" id="sun-az">210°</span></div>
-    <div class="dr"><span class="l">ALTITUDE</span><span class="v hi" id="sun-alt">52°</span></div></div>
+    <div class="dr"><span class="l">ALTITUDE</span><span class="v hi" id="sun-alt">52°</span></div>
+    <div class="lb" data-layer="shadows" onclick="toggleShadows(this)" style="margin-top:8px"><div class="ind"></div>SHADOWS</div></div>
 
   <div class="hp"><div class="hp-t"><div class="sq"></div>GEOMETRY<div style="flex:1"></div><span style="color:var(--t5)">04</span></div>
     <div id="glb-zone">DROP .GLB // CLICK UPLOAD</div><input type="file" id="glb-input" accept=".glb,.gltf">
@@ -430,29 +431,57 @@ async function initMap(){
 
       // Cut out area for High-res Geometry
       const excludePolygon = {
-        "type": "Polygon",
-        "coordinates": [[
-          [-74.0057903, 40.7572988],
-          [-73.9991393, 40.7546143],
-          [-74.0027385, 40.7496871],
-          [-74.0107127, 40.7527668],
-          [-74.0057903, 40.7572988]
-        ]]
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [-74.0057903, 40.7572988],
+            [-73.9991393, 40.7546143],
+            [-74.0027385, 40.7496871],
+            [-74.0107127, 40.7527668],
+            [-74.0057903, 40.7572988]
+          ]]
+        }
       };
+
+      // Ensure `excludePolygon` is available globally for the filter to use.
+      // The `within` operator requires a valid GeoJSON object to be provided directly.
+      // However, MapLibre GL JS `within` operator expects a GeoJSON Polygon or MultiPolygon *geometry* or *feature*.
+
+      // MapLibre's `within` operator wasn't finding '!' as a valid operator in older specs
+      // wait, `!` is NOT a valid top-level operator in some old styles, but wait, `!` is valid.
+      // Let's use `==` with `within` like: `["==", ["within", excludePolygon], false]` if `!` fails,
+      // But `!` is a valid expression. Let's check the error: `expected one of [...], "!" found` inside `['all', currentFilter, newFilter]`.
+      // This happens when the currentFilter is an older array filter and `!` is not recognized in legacy filter context.
+      // Mapbox/MapLibre has deprecated legacy filters but they still exist in mapbox styles.
+      // If we mix expression filters (`['!', ...]`) with legacy filters (e.g., `['==', 'extrude', 'true']`), it crashes because 'all' requires all children to be expressions or all legacy.
+      // We must check if currentFilter is a legacy filter and wrap it or just use legacy syntax?
+      // Actually `within` is an expression.
+      // Let's use maplibregl's filter conversion or just drop the legacy filter if we can't merge them.
+      // Or we can convert currentFilter to an expression if it's not.
+      // Actually, if we use `['!', ['within', excludePolygon]]` as an expression, it's valid.
 
       // Grid
       const gf={type:'FeatureCollection',features:[]};const gs=PARAMS.gridSize,gc=PARAMS.gridCount;
       for(let i=-gc;i<=gc;i++){const o=i*gs/gc;gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs+o,SITE.lat-gs],[SITE.lng-gs+o,SITE.lat+gs]]}});gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs,SITE.lat-gs+o],[SITE.lng+gs,SITE.lat-gs+o]]}});}
       map.addSource('grid-src',{type:'geojson',data:gf});
       map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
+
       // Apply filter to all existing building layers
       const layers = map.getStyle().layers;
       layers.forEach(layer => {
         if (layer.id.includes('building') || layer['source-layer'] === 'building') {
           const currentFilter = map.getFilter(layer.id);
           const newFilter = ['!', ['within', excludePolygon]];
+
           if (currentFilter) {
-            map.setFilter(layer.id, ['all', currentFilter, newFilter]);
+            // Attempt to combine existing filter with new filter using 'all'
+            // If current filter is an expression starting with 'all', append to it
+            if (Array.isArray(currentFilter) && currentFilter[0] === 'all') {
+              map.setFilter(layer.id, [...currentFilter, newFilter]);
+            } else {
+              map.setFilter(layer.id, ['all', currentFilter, newFilter]);
+            }
           } else {
             map.setFilter(layer.id, newFilter);
           }
@@ -507,13 +536,30 @@ function loadAllGLBs(){
       this.scene.add(new THREE.AmbientLight(0xffffff, PARAMS.ambientIntensity));
       const dl = new THREE.DirectionalLight(0xffffff, PARAMS.dirLightIntensity);
       dl.position.set(0, -70, 100);
+
+      // Configure shadow properties for the high-detail models
+      dl.castShadow = shadowsEnabled;
+      dl.shadow.mapSize.width = 2048;
+      dl.shadow.mapSize.height = 2048;
+      dl.shadow.camera.near = 0.5;
+      dl.shadow.camera.far = 3000;
+      dl.shadow.camera.left = -800;
+      dl.shadow.camera.right = 800;
+      dl.shadow.camera.top = 800;
+      dl.shadow.camera.bottom = -800;
+      dl.shadow.bias = -0.0005;
+
+      this.dirLight = dl;
       this.scene.add(dl);
+
       this.renderer = new THREE.WebGLRenderer({
         canvas: m.getCanvas(),
         context: gl,
         antialias: true
       });
       this.renderer.autoClear = false;
+      this.renderer.shadowMap.enabled = shadowsEnabled;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
       // Remote Players Group
       this.remotePlayersGroup = new THREE.Group();
@@ -636,6 +682,8 @@ function loadAllGLBs(){
       const model = gltf.scene;
       model.traverse(ch => {
         if (ch.isMesh) {
+          ch.castShadow = shadowsEnabled;
+          ch.receiveShadow = shadowsEnabled;
           ch.material = new THREE.MeshStandardMaterial({
             color: PARAMS.glbColor,
             roughness: PARAMS.glbRoughness,
@@ -665,7 +713,7 @@ function setupGLB(){
   inp.onchange=e=>{if(e.target.files.length)doUp(e.target.files[0])};
   function doUp(f){st.textContent='> LOADING '+f.name;
     const r=new FileReader();r.onload=function(e){new THREE.GLTFLoader().parse(e.target.result,'',gltf=>{
-      const m=gltf.scene;m.traverse(ch=>{if(ch.isMesh)ch.material=new THREE.MeshStandardMaterial({color:PARAMS.glbColor,roughness:PARAMS.glbRoughness,metalness:PARAMS.glbMetalness,transparent:true,opacity:PARAMS.glbOpacity,side:THREE.DoubleSide})});
+      const m=gltf.scene;m.traverse(ch=>{if(ch.isMesh){ch.castShadow=shadowsEnabled;ch.receiveShadow=shadowsEnabled;ch.material=new THREE.MeshStandardMaterial({color:PARAMS.glbColor,roughness:PARAMS.glbRoughness,metalness:PARAMS.glbMetalness,transparent:true,opacity:PARAMS.glbOpacity,side:THREE.DoubleSide})}});
       if(glbCustomLayer&&glbCustomLayer.scene)glbCustomLayer.scene.add(m);
       st.textContent='> LOADED '+f.name;z.textContent=f.name.toUpperCase();
     })};r.readAsArrayBuffer(f);}
@@ -792,6 +840,25 @@ function updateSim(){
   document.getElementById('ct-ferry').textContent=ct.ferry;document.getElementById('ct-subway').textContent=ct.subway;document.getElementById('ct-bus').textContent=ct.bus;
 }
 
+/* ═══ SHADOWS ═══ */
+let shadowsEnabled=false;
+function toggleShadows(el){
+  el.classList.toggle('on');
+  shadowsEnabled=!shadowsEnabled;
+  if(glbCustomLayer&&glbCustomLayer.renderer){
+    glbCustomLayer.renderer.shadowMap.enabled=shadowsEnabled;
+    glbCustomLayer.scene.traverse(ch=>{
+      if(ch.isLight&&ch.castShadow!==undefined) ch.castShadow=shadowsEnabled;
+      if(ch.isMesh) {
+        ch.castShadow=shadowsEnabled;
+        ch.receiveShadow=shadowsEnabled;
+        if(ch.material) ch.material.needsUpdate=true;
+      }
+    });
+    if(map)map.triggerRepaint();
+  }
+}
+
 /* ═══ LAYERS ═══ */
 function toggleLayer(el){
   el.classList.toggle('on');const l=el.dataset.layer;layerState[l]=!layerState[l];
@@ -842,6 +909,7 @@ fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v
 
 /* Expose functions to global scope for inline event handlers */
 window.toggleLayer = toggleLayer;
+window.toggleShadows = toggleShadows;
 window.setView = setView;
 window.resetCamera = resetCamera;
 window.updateSun = updateSun;
