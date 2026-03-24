@@ -448,7 +448,9 @@ async function initMap(){
       // Apply filter to all existing building layers
       const layers = map.getStyle().layers;
       layers.forEach(layer => {
-        if (layer.id.includes('building') || layer['source-layer'] === 'building') {
+        const layerId = (layer.id || '').toLowerCase();
+        const sourceLayer = (layer['source-layer'] || '').toLowerCase();
+        if (layerId.includes('building') || sourceLayer.includes('building')) {
           const currentFilter = map.getFilter(layer.id);
           const newFilter = ['!', ['within', excludePolygon]];
           if (currentFilter) {
