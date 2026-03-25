@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
@@ -500,6 +501,11 @@ async function initMap(){
       ]]);
       
       const buildingLayers = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building');
+
+      // Fix early disappearance of buildings on zoom out
+      buildingLayers.forEach(layer => {
+        map.setLayerZoomRange(layer.id, 13, layer.maxzoom || 24);
+      });
 
       // Store original filters to combine them properly
       const originalFilters = {};
@@ -1867,10 +1873,19 @@ async function main(){
   gui.domElement.style.right = '320px'; // To left of right HUD
   gui.domElement.style.zIndex = '1000';
 
+  const onCulturalTagChange = () => {
+    culturalTagsGroup.children.slice().forEach(child => {
+      culturalTagsGroup.remove(child);
+    });
+    createdCulturalTags.clear();
+    addSiteMarker();
+    if(siteMarkerMesh) culturalTagsGroup.add(siteMarkerMesh);
+    updateCulturalTags();
+  };
   const fTag = gui.addFolder('Cultural Tags');
-  fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(updateCulturalTags);
-  fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(updateCulturalTags);
-  fTag.add(PARAMS, 'culturalTextSize', 6, 32).onChange(updateCulturalTags);
+  fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(onCulturalTagChange);
+  fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(onCulturalTagChange);
+  fTag.add(PARAMS, 'culturalTextSize', 6, 32).onChange(onCulturalTagChange);
 
   const fTransit = gui.addFolder('Transit Settings');
 
@@ -1939,13 +1954,18 @@ async function main(){
     }
   });
 
+  const updateWater = () => {
+    const waterLayers = map.getStyle().layers.filter(l => l.id.includes('water') || l.id.includes('ocean'));
+    waterLayers.forEach(l => {
+      if(l.type === 'fill') {
+        map.setPaintProperty(l.id, 'fill-color', PARAMS.waterColor);
+        map.setPaintProperty(l.id, 'fill-opacity', PARAMS.waterOpacity);
+      }
+    });
+  };
   const fMap = gui.addFolder('Map Style');
-  fMap.addColor(PARAMS, 'waterColor').onChange(c => {
-    if(map.getLayer('water')) map.setPaintProperty('water', 'fill-color', c);
-  });
-  fMap.add(PARAMS, 'waterOpacity', 0, 1).onChange(o => {
-    if(map.getLayer('water')) map.setPaintProperty('water', 'fill-opacity', o);
-  });
+  fMap.addColor(PARAMS, 'waterColor').onChange(updateWater);
+  fMap.add(PARAMS, 'waterOpacity', 0, 1).onChange(updateWater);
 
   const fGrid = gui.addFolder('Grid');
   fGrid.add(PARAMS, 'gridCellSize', 100, 5000).onChange(v => updateGrid());
