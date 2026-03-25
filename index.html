@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
@@ -501,6 +502,11 @@ async function initMap(){
       
       const buildingLayers = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building');
 
+      // Fix early disappearance of buildings on zoom out
+      buildingLayers.forEach(layer => {
+        map.setLayerZoomRange(layer.id, 13, layer.maxzoom || 24);
+      });
+
       // Store original filters to combine them properly
       const originalFilters = {};
       buildingLayers.forEach(layer => {
@@ -630,11 +636,11 @@ function createTextSprite(message) {
   const context = canvas.getContext('2d');
   const fontSize = PARAMS.culturalTextSize * 4; // Render large for clarity, scale down in 3D
   context.font = `${fontSize}px "Fragment Mono"`;
-
+  
   const textWidth = context.measureText(message).width;
   canvas.width = textWidth + 10;
   canvas.height = fontSize + 10;
-
+  
   context.font = `${fontSize}px "Fragment Mono"`;
   context.fillStyle = 'white';
   context.textAlign = 'center';
@@ -646,13 +652,13 @@ function createTextSprite(message) {
   const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
   const sprite = new THREE.Sprite(spriteMaterial);
   // Scale down the canvas size to 3D units
-  sprite.scale.set(canvas.width * 0.1, canvas.height * 0.1, 1);
+  sprite.scale.set(canvas.width * 0.1, canvas.height * 0.1, 1); 
   return sprite;
 }
 
 function createCulturalTag(text, lngLat, isSiteMarker=false) {
   const group = new THREE.Group();
-
+  
   // Inverse pyramid (Cone)
   const sz = PARAMS.culturalPyramidSize;
   const coneGeo = new THREE.ConeGeometry(sz, sz*2, 4);
@@ -688,22 +694,22 @@ function createCulturalTag(text, lngLat, isSiteMarker=false) {
 
   // Animation metadata
   group.userData = { isSiteMarker, initialY: 100, animOffset: Math.random() * Math.PI * 2 };
-
+  
   const lp = mercatorFromLngLat(lngLat[0], lngLat[1], 0);
   group.position.set(lp.x, lp.y, lp.z);
-
+  
   return group;
 }
 
 function updateCulturalTags() {
   if (!map || !glbCustomLayer || !glbCustomLayer.scene) return;
-
+  
   // Find cultural POIs
   const features = map.querySourceFeatures('openmaptiles', { sourceLayer: 'poi' });
   const targetClasses = ['museum', 'gallery', 'arts_centre', 'theatre', 'library', 'attraction', 'artwork'];
-
+  
   const currentFrameTags = new Set();
-
+  
   for (const feature of features) {
     const cls = feature.properties.class || feature.properties.subclass;
     if (targetClasses.includes(cls) && feature.properties.name) {
@@ -712,11 +718,11 @@ function updateCulturalTags() {
       let coords = null;
       if (feature.geometry.type === 'Point') coords = feature.geometry.coordinates;
       else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') coords = turf.centerOfMass(feature).geometry.coordinates;
-
+      
       if (coords) {
         const id = `${name}-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`;
         currentFrameTags.add(id);
-
+        
         if (!createdCulturalTags.has(id)) {
           const tag = createCulturalTag(name, coords);
           tag.name = id;
@@ -970,7 +976,7 @@ function initPreviewRenderer() {
   const canvas = document.getElementById('project-canvas');
   previewRenderer = new THREE.WebGLRenderer({canvas: canvas, alpha: true, antialias: true});
   previewRenderer.setSize(230, 140);
-
+  
   // Basic lighting for wireframe/lines
   previewScene.add(new THREE.AmbientLight(0xffffff, 1.0));
 }
@@ -1015,7 +1021,7 @@ function loadActiveProject(filepath) {
     if (glbCustomLayer && glbCustomLayer.scene) {
       glbCustomLayer.scene.add(activeProjectMesh);
     }
-
+    
     // Wireframe Preview setup
     previewModel = activeProjectMesh.clone();
     previewModel.traverse(ch => {
@@ -1034,7 +1040,7 @@ function loadActiveProject(filepath) {
     previewModel.position.x += (previewModel.position.x - center.x);
     previewModel.position.y += (previewModel.position.y - center.y);
     previewModel.position.z += (previewModel.position.z - center.z);
-
+    
     previewScene.add(previewModel);
 
   }, undefined, (e) => {
@@ -1158,19 +1164,19 @@ function getTrafficLngLat(tx, ty) {
 
     // Avenues (X) go from West to East (Lng increases)
     // Streets (Y) go from North to South (Lat decreases)
-
-    // We will use a more precise affine transform based on actual coordinates
+    
+    // We will use a more precise affine transform based on actual coordinates 
     // to match the map grid angle. Hudson yards streets are rotated ~29 degrees.
     // Let's define 3 anchor points for an affine transform:
     // P0: 12th & 34th (x: 0, y: 640) => [ -74.005118, 40.755291 ]
     // P1: 8th & 34th (x: 920, y: 640) => [ -73.993358, 40.752317 ]
     // P2: 12th & 42nd (x: 0, y: 0) => [ -73.999601, 40.762221 ]
-
+    
     // Vector X (along 34th St from 12th to 8th):
     // dx = P1.lng - P0.lng = 0.011760
     // dy = P1.lat - P0.lat = -0.002974
     // Traffic dx = 920
-
+    
     // Vector Y (along 12th Ave from 34th to 42nd):
     // dx = P2.lng - P0.lng = 0.005517
     // dy = P2.lat - P0.lat = 0.006930
@@ -1201,8 +1207,8 @@ function tickCars(){
       if(o.id===c.id)continue;
       const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
       if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
-      if(dx*cosA+dy*sinA<=0)continue;
-      if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue;
+      if(dx*cosA+dy*sinA<=0)continue; 
+      if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue; 
       const cross=Math.abs(dx*sinA-dy*cosA);
       if(cross>CFG.CAR_WID*2.5)continue;
       if(dist<cd){cd=dist;cs=o.speed;}
@@ -1260,7 +1266,7 @@ function tickCars(){
         const gps = getTrafficLngLat(c.x, c.y);
         const lp = mercatorFromLngLat(gps.lng, gps.lat, 0);
         c.mesh.position.set(lp.x, lp.y, lp.z);
-
+        
         // Match rotation to the street grid angle + simulation angle
         // HUD street angle is ~29 degrees (0.506 rad) counter-clockwise from East.
         // Simulation Y is down, so we subtract it from map rotation
@@ -1319,9 +1325,9 @@ function getSunVector(dateObj, lat, lon, northOffsetRad) {
     const sunPos = SunCalc.getPosition(dateObj, lat, lon);
     if (sunPos.altitude <= 0) return null; // Nighttime
 
-    const phi = sunPos.altitude;
+    const phi = sunPos.altitude; 
     const theta = sunPos.azimuth + northOffsetRad;
-
+    
     const x = Math.cos(phi) * -Math.sin(theta);
     const y = Math.sin(phi);
     const z = Math.cos(phi) * Math.cos(theta);
@@ -1331,12 +1337,12 @@ function getSunVector(dateObj, lat, lon, northOffsetRad) {
 
 function prepareAnalysisGeometry(offsetAmount) {
     let analysisVertices = [];
-
+    
     // Ensure all matrices reflect any Master/Target/Context transforms
     if(glbCustomLayer && glbCustomLayer.scene) {
         glbCustomLayer.scene.updateMatrixWorld(true);
     }
-
+    
     if(!activeProjectMesh) return analysisVertices;
 
     // We create a specific material for analysis representation
@@ -1349,20 +1355,20 @@ function prepareAnalysisGeometry(offsetAmount) {
         if (child.isMesh) {
             child.material = analysisMat;
             child.updateMatrixWorld();
-
+            
             const geo = child.geometry;
             if (!geo.attributes.normal) geo.computeVertexNormals();
 
             const posAttr = geo.attributes.position;
             const normAttr = geo.attributes.normal;
-
+            
             const colorArr = new Float32Array(posAttr.count * 3);
             geo.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
-
+            
             for (let i = 0; i < posAttr.count; i++) {
                 const vertex = new THREE.Vector3().fromBufferAttribute(posAttr, i);
                 vertex.applyMatrix4(child.matrixWorld);
-
+                
                 const normal = new THREE.Vector3().fromBufferAttribute(normAttr, i);
                 const normalMatrix = new THREE.Matrix3().getNormalMatrix(child.matrixWorld);
                 normal.applyMatrix3(normalMatrix).normalize();
@@ -1402,15 +1408,15 @@ async function runAnalysis() {
     const lat = SITE.lat;
     const lon = SITE.lng;
     const northOffsetRad = 0;
-
+    
     const startD = new Date(document.getElementById('solar-start-date').value + "T00:00:00");
     const endD = new Date(document.getElementById('solar-end-date').value + "T00:00:00");
-
+    
     const tStartStr = document.getElementById('solar-start-time').value.split(':');
     const tEndStr = document.getElementById('solar-end-time').value.split(':');
     const tStart = parseInt(tStartStr[0]) + parseInt(tStartStr[1])/60;
     const tEnd = parseInt(tEndStr[0]) + parseInt(tEndStr[1])/60;
-
+    
     // Fixed steps for UI simplicity
     const dStep = 1;
     const hStep = 0.5;
@@ -1437,7 +1443,7 @@ async function runAnalysis() {
     glbCustomLayer.scene.updateMatrixWorld(true);
     const box = new THREE.Box3();
     box.setFromObject(activeProjectMesh);
-
+    
     // Include the main static GLBs as context for shadows
     glbCustomLayer.scene.children.forEach(c => {
       if(c !== activeProjectMesh && c !== culturalTagsGroup && c !== glbCustomLayer.remotePlayersGroup && c !== trafficGroup && c !== glbCustomLayer.gridHelper && !c.isLight) {
@@ -1452,10 +1458,10 @@ async function runAnalysis() {
     box.getSize(size);
     const maxDim = Math.max(size.x, size.y, size.z);
 
-    const offsetAmount = maxDim * 0.0001;
+    const offsetAmount = maxDim * 0.0001; 
     const analysisVertices = prepareAnalysisGeometry(offsetAmount);
 
-    const rtSize = parseInt(document.getElementById('solar-res').value) || 1024;
+    const rtSize = parseInt(document.getElementById('solar-res').value) || 1024; 
     const rt = new THREE.WebGLRenderTarget(rtSize, rtSize, {
         minFilter: THREE.NearestFilter,
         magFilter: THREE.NearestFilter,
@@ -1503,7 +1509,7 @@ async function runAnalysis() {
             glbCustomLayer.renderer.setRenderTarget(rt);
             glbCustomLayer.renderer.clear();
             glbCustomLayer.renderer.render(glbCustomLayer.scene, sunCam);
-            glbCustomLayer.renderer.readRenderTargetPixels(rt, 0, 0, rtSize, rtSize, buffer);
+            glbCustomLayer.renderer.readRenderTargetPixels(rt, 0, 0, rtSize, rtSize, buffer); 
 
             const projMat = new THREE.Matrix4().multiplyMatrices(sunCam.projectionMatrix, sunCam.matrixWorldInverse);
 
@@ -1546,7 +1552,7 @@ async function runAnalysis() {
             // --- CLEANUP AND RESTORE ---
             hideObjects.forEach(obj => {if(obj) obj.visible = true});
             glbCustomLayer.renderer.setClearColor(oldClearColor, oldClearAlpha);
-
+            
             glbCustomLayer.scene.traverse(child => {
                 if (child.isMesh && origMats.has(child)) {
                     child.material = origMats.get(child);
@@ -1566,7 +1572,7 @@ async function runAnalysis() {
 function applyAnalysisColors(analysisVertices, totalRays, dStep, hStep) {
     let maxHits = 0;
     analysisVertices.forEach(v => { if (v.hits > maxHits) maxHits = v.hits; });
-
+    
     if (maxHits === 0) maxHits = 1;
 
     analysisVertices.forEach(v => {
@@ -1585,7 +1591,7 @@ function applyAnalysisColors(analysisVertices, totalRays, dStep, hStep) {
     const maxHours = (maxHits * dStep * hStep).toFixed(1);
     document.getElementById('leg-max').textContent = maxHours + ' h';
     document.getElementById('leg-mid').textContent = (maxHours / 2).toFixed(1) + ' h';
-
+    
     // Automatically show solar heatmap
     if(!isSolarLayerActive) toggleSolarLayer();
 
@@ -1655,13 +1661,13 @@ function easeIO(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
 function mercatorFromLngLat(lng, lat, alt=0) {
   const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], alt);
   const mScale = mc.meterInMercatorCoordinateUnits();
-
+  
   // Transform to local GLB origin coordinate space
   const og = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
   // Reversing the translation and scale from glbCustomLayer.render
   const x = (mc.x - og.x) / mScale;
   const z = (mc.y - og.y) / mScale;
-  const y = (mc.z - og.z) / mScale;
+  const y = (mc.z - og.z) / mScale; 
   return {x, y, z};
 }
 
@@ -1677,7 +1683,7 @@ function initTransit(){
       const id = `${route.id}_v${j}`;
       const sz = sizes[route.type] * PARAMS.transitIconScale;
       const c = PARAMS.transitGroupColors[route.type];
-
+      
       const geo = new THREE.BoxGeometry(sz, sz, sz);
       const mat = new THREE.MeshBasicMaterial({color: c, depthTest: false});
       const mesh = new THREE.Mesh(geo, mat);
@@ -1853,8 +1859,8 @@ async function main(){
   await bootSeq();
   await initMap();
   setupGLB();
-
-
+  
+  
   // Setup lil-gui
   document.documentElement.style.setProperty('--c-plane', PARAMS.transitGroupColors.plane);
   document.documentElement.style.setProperty('--c-heli', PARAMS.transitGroupColors.heli);
@@ -1866,15 +1872,24 @@ async function main(){
   gui.domElement.style.top = '10px';
   gui.domElement.style.right = '320px'; // To left of right HUD
   gui.domElement.style.zIndex = '1000';
-
+  
+  const onCulturalTagChange = () => {
+    culturalTagsGroup.children.slice().forEach(child => {
+      culturalTagsGroup.remove(child);
+    });
+    createdCulturalTags.clear();
+    addSiteMarker();
+    if(siteMarkerMesh) culturalTagsGroup.add(siteMarkerMesh);
+    updateCulturalTags();
+  };
   const fTag = gui.addFolder('Cultural Tags');
-  fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(updateCulturalTags);
-  fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(updateCulturalTags);
-  fTag.add(PARAMS, 'culturalTextSize', 6, 32).onChange(updateCulturalTags);
-
+  fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(onCulturalTagChange);
+  fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(onCulturalTagChange);
+  fTag.add(PARAMS, 'culturalTextSize', 6, 32).onChange(onCulturalTagChange);
+  
   const fTransit = gui.addFolder('Transit Settings');
-
-
+  
+  
   fTransit.add(PARAMS, 'transitIconScale', 0.1, 5).onChange((v) => {
     // sim markers
     for(const [id, obj] of simMarkers) {
@@ -1939,18 +1954,23 @@ async function main(){
     }
   });
 
+  const updateWater = () => {
+    const waterLayers = map.getStyle().layers.filter(l => l.id.includes('water') || l.id.includes('ocean'));
+    waterLayers.forEach(l => {
+      if(l.type === 'fill') {
+        map.setPaintProperty(l.id, 'fill-color', PARAMS.waterColor);
+        map.setPaintProperty(l.id, 'fill-opacity', PARAMS.waterOpacity);
+      }
+    });
+  };
   const fMap = gui.addFolder('Map Style');
-  fMap.addColor(PARAMS, 'waterColor').onChange(c => {
-    if(map.getLayer('water')) map.setPaintProperty('water', 'fill-color', c);
-  });
-  fMap.add(PARAMS, 'waterOpacity', 0, 1).onChange(o => {
-    if(map.getLayer('water')) map.setPaintProperty('water', 'fill-opacity', o);
-  });
-
+  fMap.addColor(PARAMS, 'waterColor').onChange(updateWater);
+  fMap.add(PARAMS, 'waterOpacity', 0, 1).onChange(updateWater);
+  
   const fGrid = gui.addFolder('Grid');
   fGrid.add(PARAMS, 'gridCellSize', 100, 5000).onChange(v => updateGrid());
   fGrid.add(PARAMS, 'gridLineAlpha', 0, 1).onChange(v => updateGrid());
-
+  
   const fTraf = gui.addFolder('Traffic Sim');
   fTraf.addColor(PARAMS, 'carColor').onChange(c => {
     if(trafficGroup) {
@@ -1961,8 +1981,8 @@ async function main(){
         });
     }
   });
-
-
+  
+  
   function updateGrid() {
     if(!glbCustomLayer || !glbCustomLayer.scene) return;
     const oldGrid = glbCustomLayer.scene.getObjectByName('groundGrid');
