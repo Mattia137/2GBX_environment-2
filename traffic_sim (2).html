@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hudson Yards Traffic Simulator</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0a0a0f;overflow:hidden;font-family:'Courier New',monospace;color:#c0c0c0}
+  canvas{display:block;cursor:crosshair}
+  #ui{position:fixed;top:12px;left:12px;z-index:10;pointer-events:none}
+  #ui div{background:rgba(0,0,0,.78);border:1px solid #333;padding:6px 10px;margin-bottom:4px;font-size:11px;border-radius:3px}
+  #controls{position:fixed;bottom:12px;left:12px;z-index:10;background:rgba(0,0,0,.78);border:1px solid #333;padding:8px 14px;font-size:11px;border-radius:3px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  #controls span.k{color:#7f7}
+  #car-slider{-webkit-appearance:none;appearance:none;width:180px;height:4px;border-radius:2px;background:#333;outline:none;cursor:pointer;vertical-align:middle}
+  #car-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#7f7;cursor:pointer;border:none}
+  #car-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#7f7;cursor:pointer;border:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui"><div id="stats"></div></div>
+<div id="controls">
+  <div><span class="k">WASD</span> Pedestrian</div>
+  <div><span class="k">Scroll</span> Zoom</div>
+  <div><span class="k">Drag</span> Pan</div>
+  <div><span class="k">P</span> Pause <span class="k">G</span> Grid</div>
+  <div><span class="k">Cars</span>
+    <input type="range" id="car-slider" min="50" max="500" value="80">
+    <span id="car-count">80</span>
+  </div>
+</div>
+<script>
+"use strict";
+
+// ===================== REAL-WORLD SCALE =====================
+// 1 unit = 1 meter
+// Manhattan block N-S: ~80m | E-W between avenues: ~230-250m
+// Car: ~4.5m long, ~1.8m wide
+// Avenue: ~18m wide (4 travel lanes ~3.5m each)
+// Cross street: ~10m wide (2 travel lanes)
+
+const CFG = {
+  NUM_CARS: 80,
+  // Car dimensions (meters)
+  CAR_LEN: 4.5,
+  CAR_WID: 1.8,
+  CAR_MAX_SPEED: 1.4,
+  CAR_ACCEL: 0.03,
+  CAR_BRAKE: 0.07,
+  CAR_HARD_BRAKE: 0.15,
+  FOLLOW_DIST: 12,
+  STOP_LINE_DIST: 14,
+  // Avenue lane offsets from center (meters) — 2 lanes per direction
+  AVE_LANE_RIGHT: 2.5,   // right/curb lane center
+  AVE_LANE_LEFT:  6.0,   // left/inner lane center
+  // Cross street lane offset
+  ST_LANE: 2.5,
+  // Road rendering widths
+  AVE_ROAD_W: 18,
+  ST_ROAD_W: 10,
+  // Lights
+  LIGHT_GREEN: 280, LIGHT_YELLOW: 50, LIGHT_ALL_RED: 25,
+  STOP_WAIT: 65,
+  PED_SPEED: 1.0, PED_R: 2.5, PED_DETECT: 18,
+  STUCK_LIMIT: 420,
+};
+
+// ===================== CANVAS & CAMERA =====================
+const cvs = document.getElementById('c'), ctx = cvs.getContext('2d');
+let W, H;
+const resize = () => { W = cvs.width = innerWidth; H = cvs.height = innerHeight; };
+resize(); addEventListener('resize', resize);
+
+const cam = { x: 0, y: 0, z: 0.55 };
+let drag = null;
+cvs.onmousedown = e => { drag = { mx:e.clientX, my:e.clientY, cx:cam.x, cy:cam.y }; };
+cvs.onmousemove = e => { if(!drag)return; cam.x=drag.cx+(e.clientX-drag.mx)/cam.z; cam.y=drag.cy+(e.clientY-drag.my)/cam.z; };
+cvs.onmouseup = () => drag = null;
+cvs.onwheel = e => { cam.z = Math.max(0.08, Math.min(6, cam.z*(e.deltaY>0?0.9:1.1))); e.preventDefault(); };
+const w2s = (x,y) => ({ x:(x+cam.x)*cam.z+W/2, y:(y+cam.y)*cam.z+H/2 });
+
+// ===================== ROAD NETWORK =====================
+function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+
+// Avenue X positions (west to east, meters)
+const AX = {
+  '12th':0, '11th':210, 'HudBl':330, '10th':440,
+  'Dyer':540, '9th':680, '8th':920,
+};
+// Street Y positions (north to south)
+const SY = {};
+const streetNames = [];
+for(let s=42;s>=25;s--){const nm=ordinal(s);SY[nm]=(42-s)*80;streetNames.push(nm);}
+
+// Graph
+const nodes=[], nodeMap={}, adjList=[], edgeSet=[];
+let _nid=0;
+
+function addNode(ave,st){
+  const key=ave+','+st;
+  if(nodeMap[key]!==undefined)return nodeMap[key];
+  const id=_nid++;
+  nodeMap[key]=id;
+  nodes.push({
+    id, x:AX[ave], y:SY[st], ave, st, key,
+    type:'none', lightState:'green-h',
+    lightTimer:50+Math.floor(Math.random()*CFG.LIGHT_GREEN),
+    occupants:new Set(), occupantDir:null,
+    stopQ:[], stopW:new Map(), isBoundary:false,
+  });
+  adjList.push([]);
+  return id;
+}
+
+function addEdge(id1,id2){
+  if(adjList[id1].some(e=>e.to===id2))return;
+  const a=nodes[id1],b=nodes[id2];
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy);
+  const isAve = a.ave===b.ave;
+  adjList[id1].push({to:id2,len,isAve});
+  adjList[id2].push({to:id1,len,isAve});
+  edgeSet.push({a:id1,b:id2,isAve,oneWay:false});
+}
+
+// Directed edge: only from id1 → id2
+function addOneWay(id1,id2){
+  if(adjList[id1].some(e=>e.to===id2))return;
+  const a=nodes[id1],b=nodes[id2];
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy);
+  const isAve = a.ave===b.ave;
+  adjList[id1].push({to:id2,len,isAve});
+  // NOT adding reverse direction
+  edgeSet.push({a:id1,b:id2,isAve,oneWay:true});
+}
+
+// One-way avenue directions:
+// 11th: SOUTH (42nd → 25th, increasing Y, increasing index in streetNames)
+// 10th: NORTH (25th → 42nd, decreasing Y, decreasing index)
+// 9th:  SOUTH
+// 8th:  NORTH
+const ONE_WAY_SOUTH = new Set(['11th','9th']);  // travel direction: increasing street index
+const ONE_WAY_NORTH = new Set(['10th','8th']);  // travel direction: decreasing street index
+
+// ---- Build all avenue nodes & N-S edges ----
+
+// 12th Ave (West Side Hwy) — two-way highway, bends east below ~29th
+const hwy12Data = [
+  ['42nd',  5,  SY['42nd']],
+  ['41st',  3,  SY['41st']],
+  ['39th', -2,  SY['39th']],
+  ['34th', -5,  SY['34th']],
+  ['30th', -5,  SY['30th']],
+  ['29th',  8,  SY['29th']],
+  ['28th',  25, SY['28th']],
+  ['27th',  45, SY['27th']],
+  ['26th',  68, SY['26th']],
+  ['25th',  92, SY['25th']],
+];
+for(const [st, cx, cy] of hwy12Data){
+  const key='12th,'+st;
+  if(nodeMap[key]!==undefined)continue;
+  const id=_nid++;
+  nodeMap[key]=id;
+  nodes.push({
+    id, x:cx, y:cy, ave:'12th', st, key,
+    type:'none', lightState:'green-h',
+    lightTimer:50+Math.floor(Math.random()*CFG.LIGHT_GREEN),
+    occupants:new Set(), occupantDir:null,
+    stopQ:[], stopW:new Map(), isBoundary:false,
+  });
+  adjList.push([]);
+}
+const hwy12Sts = hwy12Data.map(d=>d[0]);
+for(let i=0;i<hwy12Sts.length-1;i++){
+  addEdge(nodeMap['12th,'+hwy12Sts[i]], nodeMap['12th,'+hwy12Sts[i+1]]);
+}
+
+// Helper: create avenue with one-way edges
+function buildAve(ave){
+  for(const st of streetNames)addNode(ave,st);
+  if(ONE_WAY_SOUTH.has(ave)){
+    // South = 42nd→41st→...→25th = index 0→1→...→17
+    for(let i=0;i<streetNames.length-1;i++)
+      addOneWay(nodeMap[ave+','+streetNames[i]], nodeMap[ave+','+streetNames[i+1]]);
+  } else if(ONE_WAY_NORTH.has(ave)){
+    // North = 25th→26th→...→42nd = index 17→16→...→0
+    for(let i=streetNames.length-1;i>0;i--)
+      addOneWay(nodeMap[ave+','+streetNames[i]], nodeMap[ave+','+streetNames[i-1]]);
+  }
+}
+
+// 11th Ave — SOUTH only (4 lanes)
+buildAve('11th');
+
+// Hudson Blvd — two-way (small local street)
+const hbSts=['36th','35th','34th','33rd'];
+for(const st of hbSts)addNode('HudBl',st);
+for(let i=0;i<hbSts.length-1;i++)addEdge(nodeMap['HudBl,'+hbSts[i]],nodeMap['HudBl,'+hbSts[i+1]]);
+
+// 10th Ave — NORTH only (4 lanes)
+buildAve('10th');
+
+// Dyer Ave — SOUTH only (Lincoln Tunnel exit feeds into city)
+const dySts=['40th','39th','38th','37th','36th','35th','34th'];
+for(const st of dySts)addNode('Dyer',st);
+for(let i=0;i<dySts.length-1;i++){
+  addOneWay(nodeMap['Dyer,'+dySts[i]], nodeMap['Dyer,'+dySts[i+1]]);
+}
+// Mark Dyer,40th as Lincoln Tunnel entry point (boundary spawner)
+nodes[nodeMap['Dyer,40th']].isTunnelEntry=true;
+
+// 9th Ave — SOUTH only (4 lanes)
+buildAve('9th');
+
+// 8th Ave — NORTH only (4 lanes)
+buildAve('8th');
+
+// ---- E-W cross street connections ----
+// Most cross streets are one-way, 2 lanes
+// 42nd, 34th: two-way (major crosstown)
+// 25th: two-way (boundary)
+// Others alternate: 41st west, 40th east, 39th west, ...
+// Below 34th: 33rd west, 32nd east, 31st west, ...
+
+const TWO_WAY_STS = new Set(['42nd','34th','25th']);
+
+// Direction map for one-way streets
+const stDirection = {}; // st -> 'w' or 'e'
+for(const st of streetNames){
+  if(TWO_WAY_STS.has(st)) continue;
+  const sn = parseInt(st);
+  if(sn >= 35 && sn <= 41){
+    // 41 west, 40 east, 39 west, 38 east, 37 west, 36 east, 35 west
+    stDirection[st] = (sn % 2 === 1) ? 'w' : 'e';
+  } else if(sn <= 33){
+    // 33 west, 32 east, 31 west, 30 east, 29 west, 28 east, 27 west, 26 east, 25 handled above
+    stDirection[st] = (sn % 2 === 1) ? 'w' : 'e';
+  }
+}
+
+function tryConnect2Way(a1,a2,st){
+  const k1=a1+','+st,k2=a2+','+st;
+  if(nodeMap[k1]!==undefined&&nodeMap[k2]!==undefined)addEdge(nodeMap[k1],nodeMap[k2]);
+}
+
+// West = from east avenues toward west: 8th→9th→Dyer→10th→HudBl→11th→12th
+// So for a given pair (a1=western, a2=eastern), west-bound = a2→a1
+// East = a1→a2
+
+function tryConnectDir(a1,a2,st){
+  const k1=a1+','+st,k2=a2+','+st;
+  if(nodeMap[k1]===undefined||nodeMap[k2]===undefined)return;
+  const dir = stDirection[st];
+  if(!dir){
+    // Two-way
+    addEdge(nodeMap[k1],nodeMap[k2]);
+  } else if(dir==='e'){
+    // East-bound: west→east = a1(western)→a2(eastern)
+    addOneWay(nodeMap[k1],nodeMap[k2]);
+  } else {
+    // West-bound: east→west = a2(eastern)→a1(western)
+    addOneWay(nodeMap[k2],nodeMap[k1]);
+  }
+}
+
+for(const st of streetNames){
+  const sn=parseInt(st);
+
+  // 12th ↔ 11th: at all 12th Ave nodes
+  if(hwy12Sts.includes(st))tryConnectDir('12th','11th',st);
+
+  // 11th ↔ HudBl: only where HudBl exists
+  if(hbSts.includes(st))tryConnectDir('11th','HudBl',st);
+
+  // 11th ↔ 10th: BLOCKED only at 31st, 32nd, 33rd (HY platform)
+  if(sn>=34||sn<=30)tryConnectDir('11th','10th',st);
+
+  // HudBl ↔ 10th: where HudBl exists
+  if(hbSts.includes(st))tryConnectDir('HudBl','10th',st);
+
+  // 10th ↔ Dyer: where Dyer exists
+  if(dySts.includes(st))tryConnectDir('10th','Dyer',st);
+
+  // 10th ↔ 9th: BLOCKED 39th-41st (Lincoln Tunnel ramps)
+  if(sn<=38||sn>=42)tryConnectDir('10th','9th',st);
+
+  // Dyer ↔ 9th: where Dyer exists and not blocked by tunnel
+  if(dySts.includes(st)&&sn<=38)tryConnectDir('Dyer','9th',st);
+
+  // 9th ↔ 8th: all streets
+  tryConnectDir('9th','8th',st);
+}
+
+// ---- Boundaries & intersection types ----
+const boundaryIds=[];
+for(const n of nodes){
+  if(n.st==='42nd'||n.st==='25th'||n.ave==='8th'){
+    if(adjList[n.id].length>0){n.isBoundary=true;boundaryIds.push(n.id);}
+  }
+}
+// Lincoln Tunnel entry is also a boundary
+const tunnelNode=nodeMap['Dyer,40th'];
+if(tunnelNode!==undefined){nodes[tunnelNode].isBoundary=true;boundaryIds.push(tunnelNode);}
+
+// Intersection types:
+// Major avenues (11th, 10th, 9th, 8th) + cross streets = traffic lights
+// Hudson Blvd and Dyer Ave intersections = stop signs
+const majorAves = new Set(['11th','10th','9th','8th']);
+for(const n of nodes){
+  const deg=adjList[n.id].length;
+  if(deg<2)continue;
+  if(n.ave==='HudBl'||n.ave==='Dyer'){
+    n.type='stop';
+  } else if(majorAves.has(n.ave)){
+    n.type='light';
+  } else if(n.ave==='12th'){
+    const hasCrossStreet = adjList[n.id].some(e=>nodes[e.to].ave!=='12th');
+    if(hasCrossStreet) n.type='light';
+  }
+}
+
+// Connected nodes
+const connIds=[];
+for(let i=0;i<nodes.length;i++)if(adjList[i].length>0)connIds.push(i);
+
+cam.x=-AX['9th']/2-50; cam.y=-SY['33rd'];
+
+// ===================== LANE GEOMETRY =====================
+// One-way avenues: 4 lanes all same direction, spread across full width
+// Two-way streets/roads: 1 lane per direction (offset right of center)
+// Lane numbering: 0=rightmost/curb ... 3=leftmost
+
+function isAveEdge(fromId,toId){
+  return nodes[fromId].ave===nodes[toId].ave;
+}
+
+function isOneWayAve(fromId,toId){
+  const ave=nodes[fromId].ave;
+  return ave===nodes[toId].ave && (ONE_WAY_SOUTH.has(ave)||ONE_WAY_NORTH.has(ave));
+}
+
+// One-way avenue lane offsets from road center (4 lanes, right to left as seen by driver)
+const OW_LANE_OFFSETS = [6.5, 2.5, -1.5, -5.5];
+// One-way street lane offsets (2 lanes across 10m road)
+const OW_ST_OFFSETS = [2.5, -2.0];
+
+function isOneWaySt(fromId,toId){
+  const a=nodes[fromId],b=nodes[toId];
+  if(a.ave===b.ave)return false; // same ave = avenue segment
+  const st=a.st; // cross street
+  return !!stDirection[st];
+}
+
+function lanePos(fromId, toId, t, lane){
+  const a=nodes[fromId], b=nodes[toId];
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const len=Math.sqrt(dx*dx+dy*dy)||1;
+  const nx=-dy/len, ny=dx/len; // right-hand normal
+  let offset;
+  if(isOneWayAve(fromId,toId)){
+    offset = OW_LANE_OFFSETS[Math.min(lane,3)];
+  } else if(isOneWaySt(fromId,toId)){
+    offset = OW_ST_OFFSETS[Math.min(lane,1)];
+  } else if(isAveEdge(fromId,toId)){
+    // Two-way ave (12th, HudBl, Dyer): 2 lanes per direction
+    offset = lane===1 ? CFG.AVE_LANE_LEFT : CFG.AVE_LANE_RIGHT;
+  } else {
+    // Two-way cross street (34th, 42nd, 25th)
+    offset = CFG.ST_LANE;
+  }
+  return {
+    x: a.x+dx*t+nx*offset,
+    y: a.y+dy*t+ny*offset,
+    angle: Math.atan2(dy,dx),
+  };
+}
+
+function edgeDir(f,t){
+  const a=nodes[f],b=nodes[t];
+  return Math.abs(b.x-a.x)>Math.abs(b.y-a.y)?'h':'v';
+}
+
+// ===================== TURN DETECTION =====================
+function turnType(n0,n1,n2){
+  const dx1=nodes[n1].x-nodes[n0].x, dy1=nodes[n1].y-nodes[n0].y;
+  const dx2=nodes[n2].x-nodes[n1].x, dy2=nodes[n2].y-nodes[n1].y;
+  const cross=dx1*dy2-dy1*dx2;
+  if(Math.abs(cross)<1)return 'straight';
+  return cross>0?'right':'left';
+}
+
+function chooseLane(car){
+  if(isOneWayAve(car.from,car.to)){
+    // 4-lane one-way avenue
+    if(car.pi+1>=car.path.length)return Math.floor(Math.random()*4);
+    const next=car.path[car.pi+1];
+    const turn=turnType(car.from,car.to,next);
+    if(turn==='right')return 0;
+    if(turn==='left')return 3;
+    return 1+Math.floor(Math.random()*2);
+  }
+
+  if(isOneWaySt(car.from,car.to)){
+    // 2-lane one-way street
+    if(car.pi+1>=car.path.length)return Math.floor(Math.random()*2);
+    const next=car.path[car.pi+1];
+    const turn=turnType(car.from,car.to,next);
+    if(turn==='right')return 0;
+    if(turn==='left')return 1;
+    return Math.floor(Math.random()*2);
+  }
+
+  if(!isAveEdge(car.from,car.to))return 0; // two-way street: lane 0
+
+  // Two-way ave (12th, HudBl, Dyer): 2 lanes
+  if(car.pi+1>=car.path.length)return 0;
+  const next=car.path[car.pi+1];
+  const turn=turnType(car.from,car.to,next);
+  if(turn==='left')return 1;
+  if(turn==='right')return 0;
+  return car.lane;
+}
+
+// ===================== A* =====================
+function astar(s,e){
+  if(s===e)return null;
+  const gS=new Map([[s,0]]),fS=new Map([[s,hr(s,e)]]),from=new Map();
+  const open=new Set([s]),closed=new Set();
+  while(open.size){
+    let cur=-1,best=Infinity;
+    for(const id of open){const f=fS.get(id)??Infinity;if(f<best){best=f;cur=id;}}
+    if(cur===e){const p=[cur];while(from.has(cur)){cur=from.get(cur);p.unshift(cur);}return p;}
+    open.delete(cur);closed.add(cur);
+    if(!adjList[cur])continue;
+    const cg=gS.get(cur)??Infinity;
+    for(const{to,len}of adjList[cur]){
+      if(closed.has(to))continue;
+      const tg=cg+len;
+      if(tg<(gS.get(to)??Infinity)){from.set(to,cur);gS.set(to,tg);fS.set(to,tg+hr(to,e));open.add(to);}
+    }
+  }
+  return null;
+}
+function hr(a,b){return Math.abs(nodes[a].x-nodes[b].x)+Math.abs(nodes[a].y-nodes[b].y);}
+
+// ===================== TRAFFIC LIGHTS =====================
+function tickLights(){
+  for(const n of nodes){
+    if(n.type!=='light')continue;
+    if(--n.lightTimer<=0)switch(n.lightState){
+      case'green-h':n.lightState='yellow-h';n.lightTimer=CFG.LIGHT_YELLOW;break;
+      case'yellow-h':n.lightState='all-red-hv';n.lightTimer=CFG.LIGHT_ALL_RED;break;
+      case'all-red-hv':n.lightState='green-v';n.lightTimer=CFG.LIGHT_GREEN;break;
+      case'green-v':n.lightState='yellow-v';n.lightTimer=CFG.LIGHT_YELLOW;break;
+      case'yellow-v':n.lightState='all-red-vh';n.lightTimer=CFG.LIGHT_ALL_RED;break;
+      case'all-red-vh':n.lightState='green-h';n.lightTimer=CFG.LIGHT_GREEN;break;
+    }
+  }
+}
+function greenFor(n,d){return(d==='h'&&n.lightState==='green-h')||(d==='v'&&n.lightState==='green-v');}
+function yellowFor(n,d){return(d==='h'&&n.lightState==='yellow-h')||(d==='v'&&n.lightState==='yellow-v');}
+
+// ===================== INTERSECTION GATE =====================
+function canEnter(car,nid){
+  const n=nodes[nid];if(n.type==='none')return true;
+  const d=edgeDir(car.from,car.to);
+  if(n.type==='light'){
+    if(!greenFor(n,d)&&!yellowFor(n,d))return false;
+    if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;
+    return true;
+  }
+  if(n.type==='stop'){
+    if(!n.stopQ.includes(car.id)){n.stopQ.push(car.id);n.stopW.set(car.id,0);}
+    const w=n.stopW.get(car.id)??0;n.stopW.set(car.id,w+1);
+    if(n.stopQ[0]!==car.id)return false;
+    if(w<CFG.STOP_WAIT)return false;
+    if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;
+    return true;
+  }
+  return true;
+}
+function markEnter(c,nid){const n=nodes[nid];n.occupants.add(c.id);n.occupantDir=edgeDir(c.from,c.to);const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);}
+function markLeave(c,nid){const n=nodes[nid];n.occupants.delete(c.id);if(!n.occupants.size)n.occupantDir=null;}
+function cleanupCar(c){
+  if(c.inInt!==null){markLeave(c,c.inInt);c.inInt=null;}
+  if(c.waitAt!==null){const n=nodes[c.waitAt];const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);c.waitAt=null;}
+}
+
+// ===================== SPATIAL HASH =====================
+const SH=20;let shMap={};
+function shBuild(){shMap={};for(const c of cars){const k=(Math.floor(c.x/SH))+','+(Math.floor(c.y/SH));(shMap[k]||(shMap[k]=[])).push(c);}}
+function shQ(x,y,r){const out=[],cr=Math.ceil(r/SH),cx=Math.floor(x/SH),cy=Math.floor(y/SH);for(let dx=-cr;dx<=cr;dx++)for(let dy=-cr;dy<=cr;dy++){const a=shMap[(cx+dx)+','+(cy+dy)];if(a)for(let i=0;i<a.length;i++)out.push(a[i]);}return out;}
+
+// ===================== CARS =====================
+const cars=[];
+const COLORS=['#cc3333','#2277cc','#33aa55','#ccaa22','#8855aa','#cc7722','#22aa88','#ddd','#445566','#bb5500','#993333','#2266aa','#228844','#cc8811','#774499','#eee','#999','#666','#334455','#118866'];
+let carId=0;
+
+function rndBoundary(){
+  // Weight: top/bottom edges 5x, east edge (8th) 1x
+  const weighted=[];
+  for(const id of boundaryIds){
+    const n=nodes[id];
+    if(n.st==='42nd'||n.st==='25th') weighted.push(id,id,id,id,id); // 5x
+    else weighted.push(id); // 1x (8th Ave)
+  }
+  return weighted[Math.floor(Math.random()*weighted.length)];
+}
+function rndNode(){return connIds[Math.floor(Math.random()*connIds.length)];}
+
+function makeCar(fromBoundary){
+  for(let a=0;a<40;a++){
+    const s=fromBoundary?rndBoundary():rndNode();
+    if(adjList[s].length===0)continue;
+    let g;for(let t=0;t<30;t++){g=rndBoundary();if(g!==s)break;}if(g===s)continue;
+    const path=astar(s,g);if(!path||path.length<2)continue;
+    const c={
+      id:carId++, from:path[0], to:path[1], t:Math.random()*0.15,
+      speed:fromBoundary?CFG.CAR_MAX_SPEED*0.4:0,
+      maxSpd:CFG.CAR_MAX_SPEED*(0.6+Math.random()*0.4),
+      path, pi:1, goal:g, x:0, y:0, ang:0,
+      lane:0, // 0=right, 1=left (for avenues)
+      inInt:null, waitAt:null, stuck:0, stopped:false,
+      color:COLORS[Math.floor(Math.random()*COLORS.length)],
+      len:CFG.CAR_LEN+Math.random()*1.0,
+      wid:CFG.CAR_WID,
+    };
+    c.lane=chooseLane(c);
+    syncPos(c);return c;
+  }
+  return null;
+}
+
+function syncPos(c){
+  const p=lanePos(c.from,c.to,c.t,c.lane);
+  c.x=p.x;c.y=p.y;c.ang=p.angle;
+}
+
+function newGoal(c){
+  for(let t=0;t<30;t++){
+    const g=rndBoundary();if(g===c.to)continue;
+    const p=astar(c.to,g);
+    if(p&&p.length>=2){c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.lane=chooseLane(c);return;}
+  }
+}
+
+function forceRepath(c){
+  if(c.isHwy){respawnHwy(c);return;}
+  if(c.isTunnel){respawnTunnel(c);return;}
+  cleanupCar(c);
+  for(let t=0;t<20;t++){
+    const g=rndBoundary();if(g===c.from)continue;
+    const p=astar(c.from,g);
+    if(p&&p.length>=2){c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.speed=0;c.stuck=0;c.lane=chooseLane(c);return;}
+  }
+}
+
+for(let i=0;i<CFG.NUM_CARS;i++){const c=makeCar(i<CFG.NUM_CARS*0.3);if(c)cars.push(c);}
+
+// ---- Highway-only cars (West Side Highway) ----
+const hwyTop=nodeMap['12th,42nd'], hwyBot=nodeMap['12th,25th'];
+const HWY_COUNT=18;
+
+function makeHwyCar(){
+  // Pick random direction: north or south
+  const goingSouth=Math.random()<0.5;
+  const s=goingSouth?hwyTop:hwyBot;
+  const g=goingSouth?hwyBot:hwyTop;
+  const path=astar(s,g);
+  if(!path||path.length<2)return null;
+  const c={
+    id:carId++, from:path[0], to:path[1], t:Math.random()*0.5,
+    speed:CFG.CAR_MAX_SPEED*0.8,
+    maxSpd:CFG.CAR_MAX_SPEED*(0.9+Math.random()*0.3), // faster on highway
+    path, pi:1, goal:g, x:0, y:0, ang:0,
+    lane:Math.random()<0.5?0:1,
+    inInt:null, waitAt:null, stuck:0, stopped:false,
+    color:COLORS[Math.floor(Math.random()*COLORS.length)],
+    len:CFG.CAR_LEN+Math.random()*1.5,
+    wid:CFG.CAR_WID,
+    isHwy:true, // flag so we respawn as highway car
+  };
+  syncPos(c);return c;
+}
+
+function respawnHwy(c){
+  cleanupCar(c);
+  const nc=makeHwyCar();
+  if(nc)Object.assign(c,nc);
+}
+
+for(let i=0;i<HWY_COUNT;i++){const c=makeHwyCar();if(c)cars.push(c);}
+
+// ---- Lincoln Tunnel cars (enter at Dyer,40th heading south into city) ----
+const TUNNEL_COUNT=10;
+const tunnelStart=nodeMap['Dyer,40th'];
+
+function makeTunnelCar(){
+  // Spawn at tunnel exit, pick a random boundary to drive toward
+  const s=tunnelStart;
+  if(!s&&s!==0)return null;
+  for(let a=0;a<20;a++){
+    const g=rndBoundary();
+    if(g===s)continue;
+    const path=astar(s,g);
+    if(!path||path.length<2)continue;
+    const c={
+      id:carId++, from:path[0], to:path[1], t:Math.random()*0.3,
+      speed:CFG.CAR_MAX_SPEED*0.6,
+      maxSpd:CFG.CAR_MAX_SPEED*(0.7+Math.random()*0.3),
+      path, pi:1, goal:g, x:0, y:0, ang:0,
+      lane:Math.floor(Math.random()*2),
+      inInt:null, waitAt:null, stuck:0, stopped:false,
+      color:COLORS[Math.floor(Math.random()*COLORS.length)],
+      len:CFG.CAR_LEN+Math.random()*1.0,
+      wid:CFG.CAR_WID,
+      isTunnel:true,
+    };
+    syncPos(c);return c;
+  }
+  return null;
+}
+
+function respawnTunnel(c){
+  cleanupCar(c);
+  const nc=makeTunnelCar();
+  if(nc)Object.assign(c,nc);
+}
+
+for(let i=0;i<TUNNEL_COUNT;i++){const c=makeTunnelCar();if(c)cars.push(c);}
+
+// ===================== PEDESTRIAN =====================
+const pedStart=nodes[nodeMap['HudBl,34th']||nodeMap['10th,34th']||0];
+const ped={x:pedStart.x,y:pedStart.y,vx:0,vy:0};
+const keys={};let paused=false,showGrid=true;
+onkeydown=e=>{keys[e.key.toLowerCase()]=true;if(e.key==='p')paused=!paused;if(e.key==='g')showGrid=!showGrid;};
+onkeyup=e=>{keys[e.key.toLowerCase()]=false;};
+function tickPed(){
+  let ax=0,ay=0;
+  if(keys.w||keys.arrowup)ay--;if(keys.s||keys.arrowdown)ay++;
+  if(keys.a||keys.arrowleft)ax--;if(keys.d||keys.arrowright)ax++;
+  const l=Math.sqrt(ax*ax+ay*ay);
+  if(l>0){ped.vx=ax/l*CFG.PED_SPEED;ped.vy=ay/l*CFG.PED_SPEED;}
+  else{ped.vx*=.82;ped.vy*=.82;}
+  ped.x+=ped.vx;ped.y+=ped.vy;
+}
+
+// ===================== SLIDER =====================
+let targetCount=CFG.NUM_CARS;
+const slider=document.getElementById('car-slider'),countLbl=document.getElementById('car-count');
+slider.oninput=()=>{targetCount=+slider.value;countLbl.textContent=targetCount;};
+slider.onkeydown=e=>e.stopPropagation();slider.onkeyup=e=>e.stopPropagation();
+function reconcile(){
+  const d=targetCount-cars.length;
+  if(d>0)for(let i=0;i<Math.min(d,8);i++){const c=makeCar(true);if(c)cars.push(c);}
+  if(d<0)for(let i=0;i<Math.min(-d,8);i++){cleanupCar(cars.pop());}
+}
+
+// ===================== CAR UPDATE =====================
+function tickCars(){
+  shBuild();
+  for(const c of cars){
+    const eLen=Math.sqrt((nodes[c.to].x-nodes[c.from].x)**2+(nodes[c.to].y-nodes[c.from].y)**2)||1;
+    let tgt=c.maxSpd;c.stopped=false;
+    const dEnd=(1-c.t)*eLen;
+    const cosA=Math.cos(c.ang),sinA=Math.sin(c.ang);
+
+    // Release intersection
+    if(c.inInt!==null){
+      if(c.from===c.inInt&&c.t>0.15){markLeave(c,c.inInt);c.inInt=null;}
+      else if(c.from!==c.inInt&&c.to!==c.inInt){markLeave(c,c.inInt);c.inInt=null;}
+    }
+
+    // Car following — same direction only, lane-aware
+    const near=shQ(c.x,c.y,CFG.FOLLOW_DIST*1.5);
+    let cd=Infinity,cs=0;
+    for(const o of near){
+      if(o.id===c.id)continue;
+      const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
+      if(dx*cosA+dy*sinA<=0)continue; // behind
+      if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue; // oncoming
+      // Lateral check — only brake for cars in similar lane position
+      const cross=Math.abs(dx*sinA-dy*cosA);
+      if(cross>CFG.CAR_WID*2.5)continue;
+      if(dist<cd){cd=dist;cs=o.speed;}
+    }
+    if(cd<CFG.FOLLOW_DIST){
+      const gap=Math.max(0,cd-c.len*1.2);
+      tgt=Math.min(tgt,cs+(gap/CFG.FOLLOW_DIST)*c.maxSpd*0.4);
+      if(cd<c.len*2){tgt=0;c.stopped=true;}
+    }
+
+    // Intersection approach
+    const an=nodes[c.to];
+    if(an.type!=='none'&&c.inInt===null&&dEnd<CFG.STOP_LINE_DIST*2.5){
+      const ok=canEnter(c,c.to);
+      if(!ok){c.waitAt=c.to;if(dEnd<CFG.STOP_LINE_DIST){tgt=0;c.stopped=true;}else{tgt=Math.min(tgt,c.maxSpd*((dEnd-CFG.STOP_LINE_DIST)/CFG.STOP_LINE_DIST)*0.35);}}
+      else if(dEnd<CFG.STOP_LINE_DIST){markEnter(c,c.to);c.inInt=c.to;c.waitAt=null;}
+      else{const dir=edgeDir(c.from,c.to);if(yellowFor(an,dir)&&dEnd>CFG.STOP_LINE_DIST*1.6)tgt=Math.min(tgt,0.25);}
+    }
+
+    // Pedestrian
+    const pdx=ped.x-c.x,pdy=ped.y-c.y,pD=Math.sqrt(pdx*pdx+pdy*pdy);
+    if(pD<CFG.PED_DETECT&&pD>0.5){
+      const dot=pdx*cosA+pdy*sinA;
+      if(dot>0){tgt=Math.min(tgt,c.maxSpd*(pD/CFG.PED_DETECT)*0.25);if(pD<CFG.PED_DETECT*0.3){tgt=0;c.stopped=true;}}
+    }
+
+    // Speed
+    if(c.speed<tgt)c.speed=Math.min(c.speed+CFG.CAR_ACCEL,tgt);
+    else if(c.speed>tgt)c.speed=Math.max(c.speed-(tgt===0?CFG.CAR_HARD_BRAKE:CFG.CAR_BRAKE),0);
+    if(c.speed<0.04){c.stuck++;if(c.stuck>CFG.STUCK_LIMIT)forceRepath(c);}else c.stuck=0;
+    c.t+=c.speed/eLen;
+
+    // Edge transition
+    if(c.t>=1){
+      c.t=0;
+      if(nodes[c.to].isBoundary&&c.pi>=c.path.length-1){
+        cleanupCar(c);
+        if(c.isHwy){respawnHwy(c);}
+        else if(c.isTunnel){respawnTunnel(c);}
+        else{const nc=makeCar(true);if(nc)Object.assign(c,nc);else newGoal(c);}
+        continue;
+      }
+      if(c.pi>=c.path.length-1){
+        if(c.isHwy){respawnHwy(c);continue;}
+        if(c.isTunnel){respawnTunnel(c);continue;}
+        newGoal(c);
+      }
+      else{
+        c.pi++;c.from=c.to;c.to=c.path[c.pi];
+        if(!adjList[c.from].some(e=>e.to===c.to)){const np=astar(c.from,c.goal);if(np&&np.length>=2){c.path=np;c.pi=1;c.to=np[1];}else newGoal(c);}
+        // Choose lane for the new edge based on upcoming turn
+        c.lane=chooseLane(c);
+      }
+      c.t=Math.max(0,Math.min(c.t,0.99));
+    }
+    syncPos(c);
+  }
+  // Cleanup
+  if(frame%90===0){const ids=new Set(cars.map(c=>c.id));for(const n of nodes){for(const id of n.occupants)if(!ids.has(id))n.occupants.delete(id);if(!n.occupants.size)n.occupantDir=null;n.stopQ=n.stopQ.filter(id=>ids.has(id));for(const[id]of n.stopW)if(!ids.has(id))n.stopW.delete(id);}}
+}
+
+// ===================== RENDERING =====================
+const BLOCK_FILLS=[
+  {x1:AX['11th']+12,y1:SY['34th']+5,x2:AX['10th']-12,y2:SY['30th']-5,label:'HUDSON YARDS',sub:'Eastern Rail Yard',color:'rgba(30,40,60,0.55)'},
+  {x1:AX['10th']+15,y1:SY['41st']-5,x2:AX['9th']-15,y2:SY['39th']+5,label:'LINCOLN TUNNEL',sub:'I-495 Approach',color:'rgba(45,38,32,0.45)'},
+  {x1:-10,y1:SY['40th']-5,x2:AX['11th']-15,y2:SY['34th']+5,label:'JAVITS CENTER',sub:'',color:'rgba(32,45,42,0.35)'},
+];
+
+function drawBlocks(){
+  for(const b of BLOCK_FILLS){
+    const tl=w2s(b.x1,b.y1),br=w2s(b.x2,b.y2),bw=br.x-tl.x,bh=br.y-tl.y;
+    ctx.fillStyle=b.color;ctx.fillRect(tl.x,tl.y,bw,bh);
+    if(cam.z>0.3){ctx.strokeStyle='rgba(70,90,120,0.2)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.strokeRect(tl.x,tl.y,bw,bh);ctx.setLineDash([]);}
+    if(cam.z>0.3){
+      ctx.fillStyle='rgba(110,130,170,0.28)';
+      ctx.font=`bold ${Math.max(7,10*cam.z)}px Courier New`;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(b.label,tl.x+bw/2,tl.y+bh/2-(b.sub?5*cam.z:0));
+      if(b.sub&&cam.z>0.4){ctx.font=`${Math.max(5,7*cam.z)}px Courier New`;ctx.fillText(b.sub,tl.x+bw/2,tl.y+bh/2+7*cam.z);}
+    }
+  }
+}
+
+function drawRoads(){
+  ctx.lineCap='round';
+  for(const e of edgeSet){
+    const a=nodes[e.a],b=nodes[e.b];
+    const sa=w2s(a.x,a.y),sb=w2s(b.x,b.y);
+    const isHwy=a.ave==='12th'&&b.ave==='12th';
+    const isOW=e.oneWay; // one-way avenue
+    const rw=e.isAve?(isHwy?CFG.AVE_ROAD_W+6:CFG.AVE_ROAD_W):CFG.ST_ROAD_W;
+
+    // Road border
+    ctx.strokeStyle=isHwy?'#222830':'#282832';ctx.lineWidth=(rw+2)*cam.z;
+    ctx.beginPath();ctx.moveTo(sa.x,sa.y);ctx.lineTo(sb.x,sb.y);ctx.stroke();
+    // Surface
+    ctx.strokeStyle=isHwy?'#171b20':'#1a1a24';ctx.lineWidth=rw*cam.z;
+    ctx.beginPath();ctx.moveTo(sa.x,sa.y);ctx.lineTo(sb.x,sb.y);ctx.stroke();
+
+    if(cam.z>0.2){
+      const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+      const nx=-dy/len,ny=dx/len;
+
+      if(isOW && e.isAve){
+        // One-way avenue: 3 lane dividers (between 4 lanes), no center line
+        if(cam.z>0.3){
+          ctx.strokeStyle='rgba(60,60,50,0.35)';ctx.lineWidth=Math.max(0.3,0.4*cam.z);
+          ctx.setLineDash([3*cam.z,4*cam.z]);
+          for(let li=0;li<3;li++){
+            const off=(OW_LANE_OFFSETS[li]+OW_LANE_OFFSETS[li+1])/2;
+            const p1=w2s(a.x+nx*off,a.y+ny*off),p2=w2s(b.x+nx*off,b.y+ny*off);
+            ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+          }
+          ctx.setLineDash([]);
+        }
+      } else if(isOW && !e.isAve){
+        // One-way street: 1 lane divider (between 2 lanes), no center line
+        if(cam.z>0.3){
+          ctx.strokeStyle='rgba(60,60,50,0.35)';ctx.lineWidth=Math.max(0.3,0.4*cam.z);
+          ctx.setLineDash([3*cam.z,4*cam.z]);
+          const off=(OW_ST_OFFSETS[0]+OW_ST_OFFSETS[1])/2;
+          const p1=w2s(a.x+nx*off,a.y+ny*off),p2=w2s(b.x+nx*off,b.y+ny*off);
+          ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      } else if(e.isAve){
+        // Two-way ave (12th, HudBl, Dyer): solid center + lane dashes
+        ctx.strokeStyle=isHwy?'#555530':'#555520';ctx.lineWidth=Math.max(0.4,0.7*cam.z);
+        ctx.setLineDash([]);
+        ctx.beginPath();ctx.moveTo(sa.x,sa.y);ctx.lineTo(sb.x,sb.y);ctx.stroke();
+        if(cam.z>0.35){
+          const mid=(CFG.AVE_LANE_RIGHT+CFG.AVE_LANE_LEFT)/2;
+          ctx.strokeStyle='rgba(60,60,50,0.4)';ctx.lineWidth=Math.max(0.3,0.4*cam.z);
+          ctx.setLineDash([3*cam.z,4*cam.z]);
+          let p1=w2s(a.x+nx*mid,a.y+ny*mid),p2=w2s(b.x+nx*mid,b.y+ny*mid);
+          ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+          p1=w2s(a.x-nx*mid,a.y-ny*mid);p2=w2s(b.x-nx*mid,b.y-ny*mid);
+          ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      } else {
+        // Cross street: dashed center
+        ctx.strokeStyle='#40402a';ctx.lineWidth=Math.max(0.3,0.5*cam.z);
+        ctx.setLineDash([4*cam.z,5*cam.z]);
+        ctx.beginPath();ctx.moveTo(sa.x,sa.y);ctx.lineTo(sb.x,sb.y);ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Edge lines
+    if(cam.z>0.3){
+      const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+      const ew=rw/2*0.95,nx=-dy/len*ew,ny=dx/len*ew;
+      ctx.strokeStyle='rgba(50,50,60,0.4)';ctx.lineWidth=Math.max(0.3,0.4*cam.z);
+      let p1=w2s(a.x+nx,a.y+ny),p2=w2s(b.x+nx,b.y+ny);
+      ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+      p1=w2s(a.x-nx,a.y-ny);p2=w2s(b.x-nx,b.y-ny);
+      ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);ctx.stroke();
+    }
+  }
+}
+
+function drawLabels(){
+  if(cam.z<0.22)return;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+
+  // Street numbers on west side
+  ctx.font=`${Math.max(5,7*cam.z)}px Courier New`;ctx.fillStyle='rgba(85,95,115,0.45)';
+  for(const st of streetNames){
+    const k='11th,'+st;if(nodeMap[k]===undefined)continue;
+    const n=nodes[nodeMap[k]],s=w2s(n.x-35,n.y);
+    const dir=stDirection[st];
+    const arrow=dir==='w'?' ◀':dir==='e'?' ▶':'';
+    ctx.fillText('W '+parseInt(st)+arrow,s.x,s.y);
+  }
+
+  // Avenue names at top
+  ctx.font=`bold ${Math.max(6,8*cam.z)}px Courier New`;ctx.fillStyle='rgba(85,100,125,0.4)';
+  const aveLbl={'12th':'12th Ave\n(Rt 9A)','11th':'11th Ave\n▼ Southbound','HudBl':'Hudson\nBlvd','10th':'10th Ave\n▲ Northbound','Dyer':'Dyer Ave\n▼ Tunnel Exit','9th':'9th Ave\n▼ Southbound','8th':'8th Ave\n▲ Northbound'};
+  for(const[ave,label]of Object.entries(aveLbl)){
+    let top=null;for(const n of nodes)if(n.ave===ave&&(!top||n.y<top.y))top=n;
+    if(!top)continue;
+    const s=w2s(top.x,top.y-30);
+    label.split('\n').forEach((ln,i)=>ctx.fillText(ln,s.x,s.y+i*9*cam.z));
+  }
+}
+
+function drawIntersections(){
+  for(const n of nodes){
+    const s=w2s(n.x,n.y);const r=3*cam.z;
+    if(n.isBoundary&&cam.z>0.25){ctx.strokeStyle='rgba(90,180,90,0.2)';ctx.lineWidth=1;ctx.beginPath();ctx.arc(s.x,s.y,r*2.5,0,7);ctx.stroke();}
+    if(n.type==='none')continue;
+    if(n.type==='light'){
+      const hC=n.lightState==='green-h'?'#2ecc71':n.lightState==='yellow-h'?'#f1c40f':'#c0392b';
+      const vC=n.lightState==='green-v'?'#2ecc71':n.lightState==='yellow-v'?'#f1c40f':'#c0392b';
+      ctx.fillStyle=hC;ctx.fillRect(s.x-r*2.6,s.y-r*.5,r*1.6,r);ctx.fillRect(s.x+r,s.y-r*.5,r*1.6,r);
+      ctx.fillStyle=vC;ctx.fillRect(s.x-r*.5,s.y-r*2.6,r,r*1.6);ctx.fillRect(s.x-r*.5,s.y+r,r,r*1.6);
+    }else{
+      ctx.fillStyle='#c0392b';ctx.beginPath();
+      for(let i=0;i<8;i++){const a=Math.PI*2/8*i-Math.PI/8;ctx[i?'lineTo':'moveTo'](s.x+Math.cos(a)*r*1.3,s.y+Math.sin(a)*r*1.3);}
+      ctx.closePath();ctx.fill();
+    }
+  }
+}
+
+function drawCars(){
+  for(const c of cars){
+    const s=w2s(c.x,c.y);
+    const w=c.len*cam.z, h=c.wid*cam.z;
+    ctx.save();ctx.translate(s.x,s.y);ctx.rotate(c.ang);
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(-w/2+.5,-h/2+.5,w,h);
+    // Body
+    ctx.fillStyle=c.color;ctx.fillRect(-w/2,-h/2,w,h);
+    // Windshield
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.fillRect(w*0.12,-h*0.35,w*0.18,h*0.7);
+    // Brake lights
+    if(c.stopped||c.speed<0.1){
+      ctx.fillStyle='#f22';
+      ctx.fillRect(-w/2-0.3,-h*0.35,Math.max(1,1*cam.z),h*0.25);
+      ctx.fillRect(-w/2-0.3,h*0.1,Math.max(1,1*cam.z),h*0.25);
+    }
+    // Headlights
+    ctx.fillStyle='rgba(255,255,200,0.5)';
+    ctx.fillRect(w/2-0.5,-h*0.3,Math.max(1,1*cam.z),h*0.2);
+    ctx.fillRect(w/2-0.5,h*0.1,Math.max(1,1*cam.z),h*0.2);
+    ctx.restore();
+  }
+}
+
+function drawPed(){
+  const s=w2s(ped.x,ped.y),r=CFG.PED_R*cam.z;
+  const g=ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,r*4);
+  g.addColorStop(0,'rgba(0,200,255,0.15)');g.addColorStop(1,'rgba(0,200,255,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(s.x,s.y,r*4,0,7);ctx.fill();
+  ctx.fillStyle='#00c8ff';ctx.beginPath();ctx.arc(s.x,s.y,r,0,7);ctx.fill();
+  ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(s.x,s.y,r*0.35,0,7);ctx.fill();
+  if(cam.z>0.3){ctx.fillStyle='#00c8ff';ctx.font=`bold ${Math.max(6,8*cam.z)}px Courier New`;ctx.textAlign='center';ctx.fillText('PLAYER',s.x,s.y-r-4);}
+}
+
+function drawGrid(){
+  if(!showGrid)return;ctx.globalAlpha=0.08;
+  for(const n of nodes){const s=w2s(n.x,n.y);ctx.fillStyle='#556';ctx.beginPath();ctx.arc(s.x,s.y,1.5*cam.z,0,7);ctx.fill();}
+  ctx.globalAlpha=1;
+}
+
+function getExportData(){return cars.map(c=>({id:c.id,x:+c.x.toFixed(2),y:+c.y.toFixed(2),angle:+c.ang.toFixed(3),speed:+c.speed.toFixed(2),stopped:c.stopped,lane:c.lane}));}
+
+// ===================== LOOP =====================
+let frame=0,fps=0,fpsN=0,fpsT=performance.now();
+function tick(){if(!paused){tickLights();tickPed();tickCars();reconcile();}fpsN++;const n=performance.now();if(n-fpsT>1000){fps=fpsN;fpsN=0;fpsT=n;}frame++;}
+function render(){
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#0d0d14';ctx.fillRect(0,0,W,H);
+  drawRoads();drawBlocks();drawGrid();drawLabels();drawIntersections();drawCars();drawPed();
+  const mv=cars.filter(c=>c.speed>0.1).length;
+  countLbl.textContent=cars.length;
+  document.getElementById('stats').innerHTML=
+    `FPS: ${fps} | Cars: ${cars.length} | Moving: ${mv} | Stopped: ${cars.length-mv} | Zoom: ${cam.z.toFixed(2)}`+
+    (paused?' | <span style="color:#f44">PAUSED</span>':'');
+}
+(function loop(){tick();render();requestAnimationFrame(loop);})();
+</script>
+</body>
+</html>
