@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1"></script>
 
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fragment+Mono:ital@0;1&display=swap');
@@ -94,7 +95,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 #scanlines{position:fixed;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0px,transparent 3px,rgba(255,255,255,.005) 3px,rgba(255,255,255,.005) 4px);mix-blend-mode:overlay}
 
 /* ═══ HUD ═══ */
-#hud{position:fixed;inset:0;z-index:10;pointer-events:none;font-size:9px}
+#hud{position:fixed;inset:0;z-index:10;pointer-events:none;font-size:11px}
 #hud>*{pointer-events:auto}
 .brk{position:absolute;pointer-events:none}.brk::before,.brk::after{content:'';position:absolute;background:var(--ln3)}
 .brk.tl{top:12px;left:12px}.brk.tl::before{width:28px;height:1px}.brk.tl::after{width:1px;height:28px}
@@ -186,14 +187,15 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 
 <div id="left-col">
   <div class="hp"><div class="hp-t"><div class="sq on"></div>TRANSIT LIVE<div style="flex:1"></div><span style="color:var(--t5)">01</span></div>
-    <div class="dr"><span class="l">FLIGHTS</span><span class="v hi" id="ct-plane">0</span></div>
-    <div class="dr"><span class="l">HELICOPTERS</span><span class="v" id="ct-heli">0</span></div>
-    <div class="dr"><span class="l">FERRIES</span><span class="v" id="ct-ferry">0</span></div>
-    <div class="dr"><span class="l">SUBWAY</span><span class="v" id="ct-subway">0</span></div>
-    <div class="dr"><span class="l">BUSES</span><span class="v" id="ct-bus">0</span></div>
+    <div class="dr"><span class="l" style="color:var(--c-plane)">FLIGHTS</span><span class="v hi" id="ct-plane">0</span></div>
+    <div class="dr"><span class="l" style="color:var(--c-heli)">HELICOPTERS</span><span class="v" id="ct-heli">0</span></div>
+    <div class="dr"><span class="l" style="color:var(--c-ferry)">FERRIES</span><span class="v" id="ct-ferry">0</span></div>
+    <div class="dr"><span class="l" style="color:var(--c-subway)">SUBWAY</span><span class="v" id="ct-subway">0</span></div>
+    <div class="dr"><span class="l" style="color:var(--c-bus)">BUSES</span><span class="v" id="ct-bus">0</span></div>
     <div class="dr"><span class="l">API</span><span class="v" id="ct-api">INIT</span></div></div>
 
   <div class="hp"><div class="hp-t"><div class="sq on"></div>CLIMATE<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
+    <div class="dr"><span class="l">LOCAL TIME</span><span class="v hi" id="v-local-time" style="color:var(--t1)">--:--:--</span></div>
     <div class="dr"><span class="l">TEMP</span><span class="v hi" id="v-temp">72.4°F</span></div>
     <div class="dr"><span class="l">HUMIDITY</span><span class="v" id="v-hum">58%</span></div>
     <div class="dr"><span class="l">WIND</span><span class="v" id="v-wind">12.3 MPH NW</span></div>
@@ -232,9 +234,49 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="dr"><span class="l">GLB FILES</span><span class="v" id="v-glb">0/10</span></div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>DATA<div style="flex:1"></div><span style="color:var(--t5)">04</span></div>
     <div id="num-matrix" style="font-size:8px;line-height:1.5;color:var(--t4);font-variant-numeric:tabular-nums;white-space:pre"></div></div>
+
+  <div class="hp" id="solar-panel"><div class="hp-t"><div class="sq"></div>SOLAR ANALYSIS<div style="flex:1"></div><span style="color:var(--t5)">05</span></div>
+    <div class="sun-row"><div style="flex:1"><div class="sun-label">START DATE</div><input type="date" id="solar-start-date" class="sun-input" value="2024-06-01"></div></div>
+    <div class="sun-row"><div style="flex:1"><div class="sun-label">END DATE</div><input type="date" id="solar-end-date" class="sun-input" value="2024-06-30"></div></div>
+    <div class="sun-row"><div style="flex:1"><div class="sun-label">START TIME</div><input type="time" id="solar-start-time" class="sun-input" value="09:00"></div></div>
+    <div class="sun-row"><div style="flex:1"><div class="sun-label">END TIME</div><input type="time" id="solar-end-time" class="sun-input" value="17:00"></div></div>
+    <div class="sun-row"><div style="flex:1"><div class="sun-label">RESOLUTION</div>
+      <select id="solar-res" class="sun-input">
+        <option value="512">ROUGH</option>
+        <option value="1024" selected>MEDIUM</option>
+        <option value="2048">FINE</option>
+      </select></div>
+    </div>
+    <div class="lb" id="btn-run-analysis" style="margin-top:8px;justify-content:center;border:1px solid var(--t4)"><div class="ind" style="display:none"></div>RUN ANALYSIS</div>
+    <div class="lb" id="btn-toggle-solar" onclick="toggleSolarLayer()" style="margin-top:4px;justify-content:center;border:1px solid var(--t4)"><div class="ind"></div>SHOW SOLAR HEATMAP</div>
+    <div id="analysis-progress" style="display:none;margin-top:6px;">
+        <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t4);margin-bottom:2px"><span>GPU COMPUTING...</span><span id="progress-pct">0%</span></div>
+        <div style="width:100%;height:4px;background:var(--ln2)"><div id="progress-bar" style="height:100%;width:0%;background:var(--t2)"></div></div>
+    </div>
+    <div id="solar-legend" style="display:none;margin-top:8px;flex-direction:row;align-items:center;gap:8px">
+        <div style="width:8px;height:60px;background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff0000)"></div>
+        <div style="display:flex;flex-direction:column;justify-content:space-between;height:60px;font-size:8px;color:var(--t3)">
+            <span id="leg-max">MAX</span>
+            <span id="leg-mid">MID</span>
+            <span id="leg-min">0 h</span>
+        </div>
+    </div>
+  </div>
 </div>
 
-<div id="radar-wrap"><canvas id="radar-canvas" width="260" height="260"></canvas></div>
+<div id="radar-wrap" style="bottom:auto;top:320px;right:250px;"><canvas id="radar-canvas" width="130" height="130"></canvas></div>
+
+<div id="project-panel" style="position:absolute;bottom:70px;left:16px;width:230px;pointer-events:auto;" class="hp">
+  <div class="hp-t"><div class="sq on"></div>PROJECT PREVIEW<div style="flex:1"></div><span style="color:var(--t5)">P1</span></div>
+  <div style="width:100%;height:140px;border:1px solid var(--ln2);background:rgba(0,0,0,0.4);position:relative;">
+    <canvas id="project-canvas" style="width:100%;height:100%;display:block;"></canvas>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+    <div class="nb" style="width:20px;height:20px" onclick="prevProject()">&#9664;</div>
+    <div id="project-name" style="font-size:9px;color:var(--t2);letter-spacing:1px;text-transform:uppercase;text-align:center;flex:1;">G11_HYPEROBJECT</div>
+    <div class="nb" style="width:20px;height:20px" onclick="nextProject()">&#9654;</div>
+  </div>
+</div>
 <div class="dt" style="top:65px;left:50%;transform:translateX(-50%)"><span style="border:1px solid var(--ln2);padding:1px 8px"><span id="heading-val" style="color:var(--t2)">295</span></span></div>
 <div id="nav-btns"><div class="nb" onclick="resetCamera()">⌂</div><div class="nb" onclick="map&&map.zoomIn()">+</div><div class="nb" onclick="map&&map.zoomOut()">−</div></div>
 <div id="status-row"><span>SECTOR: HY-WEST 29TH-30TH</span><span>MODE: OBSERVATION</span><span>40.7538 / -74.0063</span></div>
@@ -249,12 +291,16 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@liveblocks/client@3.
    ══════════════════════════════════════════════ */
 const PARAMS = {
   // Material
-  buildingColor: '#ffffff',
+  buildingColor: 0xffffff,
   buildingOpacity: 0.35,
   glbColor: 0xffffff,
   glbOpacity: 0.60,
   glbRoughness: 0.5,
   glbMetalness: 0.1,
+  subwayMaterialColor: 0xaa88ff,
+  subwayMaterialOpacity: 0.8,
+  otherGlbMaterialColor: 0xffffff,
+  otherGlbMaterialOpacity: 0.60,
   // Light
   ambientIntensity: 0.45,
   dirLightIntensity: 0.65,
@@ -264,17 +310,28 @@ const PARAMS = {
   landOpacity: 0.65,
   roadColor: '#161620',
   roadOpacity: 0.5,
-  waterColor: '#08080c',
+  waterColor: '#224488',
+  waterOpacity: 0.9,
   gridOpacity: 0.08,
   gridSize: 0.004,
   gridCount: 30,
+  gridCellSize: 2000,
+  gridLineAlpha: 0.1,
   // Fog
   fogNear: 0.5,
   fogFar: 8,
   // Transit
   transitMarkerScale: 1.0,
+  transitIconScale: 1.0,
+  transitGroupColors: { plane: '#66ddff', heli: '#ffcc66', ferry: '#cc88ff', subway: '#aa88ff', bus: '#88ffaa' },
   flightApiRadius: 4,
   flightApiInterval: 6000,
+  // Traffic Simulation
+  carColor: 0xff2222,
+  // Cultural Map Tags
+  culturalPyramidSize: 5,
+  culturalLineWidth: 1,
+  culturalTextSize: 12,
 };
 
 const VERCEL_API='https://2gbxenvironment-2.vercel.app';
@@ -282,8 +339,8 @@ const SITE={lng:-74.006283,lat:40.753844};
 const GLB_ORIGIN={lng:-74.006649,lat:40.754283}; // Shared origin for ALL GLBs — no rotation needed
 const CAM={center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18};
 
-const REPO_BASE='https://raw.githubusercontent.com/Mattia137/2GBX_environment-2/main/';
-const GLB_FILES=['cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','railroads.glb','site_building.glb','street.glb','street_props.glb','subway_system.glb','terrain.glb'];
+const REPO_BASE='';
+const GLB_FILES=['buildings.glb','cold_storage.glb','dsr.glb','highline.glb','hy_new_dev.glb','railroads.glb','site_building.glb','street.glb','street_props.glb','subway_system.glb','terrain.glb'];
 
 /* ═══ LIVEBLOCKS ═══ */
 // Obfuscate the public key to prevent easy scraping
@@ -361,18 +418,18 @@ function bootSeq(){
     const title=document.getElementById('boot-title');
     let p=0;
     const iv=setInterval(()=>{
-      p+=1.5+Math.random()*3;if(p>100)p=100;
+      p+=20;if(p>100)p=100;
       bar.style.width=p+'%';
       if(p>=100){
         clearInterval(iv);
         setTimeout(()=>{
-          title.classList.remove('glitch-in');
-          title.classList.add('glitch-out');
-          setTimeout(()=>{
-            document.getElementById('boot').classList.add('out');
-            setTimeout(resolve,600);
-          },700);
-        },800);
+            title.classList.remove('glitch-in');
+            title.classList.add('glitch-out');
+            setTimeout(()=>{
+              document.getElementById('boot').classList.add('out');
+              setTimeout(resolve,10);
+            },10);
+          },10);
       }
     },60);
   });
@@ -406,7 +463,7 @@ function cleanStyle(s){
   s.layers=s.layers.filter(l=>{if(l.type==='symbol')return false;const id=(l.id||'').toLowerCase();return!(id.includes('label')||id.includes('name')||id.includes('poi')||id.includes('icon')||id.includes('shield')||id.includes('oneway')||id.includes('arrow'))});
   s.layers.forEach(l=>{const id=(l.id||'').toLowerCase(),t=l.type;
     if(t==='background'){l.paint={'background-color':PARAMS.backgroundFill};return}
-    if(id.includes('water')||id.includes('ocean')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.waterColor,'fill-opacity':0.9};if(t==='line')l.paint={...l.paint,'line-color':'#0c0c10','line-opacity':.3};return}
+    if(id.includes('water')||id.includes('ocean')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.waterColor,'fill-opacity':PARAMS.waterOpacity};if(t==='line')l.paint={...l.paint,'line-color':'#0c0c10','line-opacity':.3};return}
     if(id.includes('land')||id.includes('park')||id.includes('grass')||id.includes('wood')||id.includes('vegetation')||id.includes('cemetery')||id.includes('sand')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.landFill,'fill-opacity':PARAMS.landOpacity};return}
     if(id.includes('building')){if(t==='fill')l.paint={...l.paint,'fill-color':'#0c0c10','fill-opacity':.15};return}
     if(id.includes('road')||id.includes('street')||id.includes('highway')||id.includes('motorway')||id.includes('trunk')||id.includes('path')||id.includes('bridge')||id.includes('tunnel')||id.includes('link')||id.includes('service')){if(t==='line')l.paint={...l.paint,'line-color':PARAMS.roadColor,'line-opacity':PARAMS.roadOpacity};if(t==='fill')l.paint={...l.paint,'fill-color':'#0e0e14'};return}
@@ -441,12 +498,6 @@ async function initMap(){
         [-74.0092491053866, 40.752390865530714],
         [-74.00561857508424, 40.75731190275977]
       ]]);
-
-      // Grid
-      const gf={type:'FeatureCollection',features:[]};const gs=PARAMS.gridSize,gc=PARAMS.gridCount;
-      for(let i=-gc;i<=gc;i++){const o=i*gs/gc;gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs+o,SITE.lat-gs],[SITE.lng-gs+o,SITE.lat+gs]]}});gf.features.push({type:'Feature',geometry:{type:'LineString',coordinates:[[SITE.lng-gs,SITE.lat-gs+o],[SITE.lng+gs,SITE.lat-gs+o]]}});}
-      map.addSource('grid-src',{type:'geojson',data:gf});
-      map.addLayer({id:'ground-grid',source:'grid-src',type:'line',paint:{'line-color':`rgba(255,255,255,${PARAMS.gridOpacity})`,'line-width':0.5}});
       
       const buildingLayers = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building');
 
@@ -565,14 +616,124 @@ async function initMap(){
       loadAllGLBs();initTransit();startHUD();
     });
     map.on('move',updateMapHUD);
+    map.on('moveend', updateCulturalTags);
+    if(map.isStyleLoaded()) updateCulturalTags();
   }catch(err){console.error(err);document.getElementById('error-msg').textContent='MAP LOAD: '+err.message;document.getElementById('error-msg').style.display='block';}
 }
 
+let culturalTagsGroup = new THREE.Group();
+let createdCulturalTags = new Set();
+let siteMarkerMesh = null;
+
+function createTextSprite(message) {
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const fontSize = PARAMS.culturalTextSize * 4; // Render large for clarity, scale down in 3D
+  context.font = `${fontSize}px "Fragment Mono"`;
+
+  const textWidth = context.measureText(message).width;
+  canvas.width = textWidth + 10;
+  canvas.height = fontSize + 10;
+
+  context.font = `${fontSize}px "Fragment Mono"`;
+  context.fillStyle = 'white';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(message, canvas.width/2, canvas.height/2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearFilter;
+  const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+  const sprite = new THREE.Sprite(spriteMaterial);
+  // Scale down the canvas size to 3D units
+  sprite.scale.set(canvas.width * 0.1, canvas.height * 0.1, 1);
+  return sprite;
+}
+
+function createCulturalTag(text, lngLat, isSiteMarker=false) {
+  const group = new THREE.Group();
+
+  // Inverse pyramid (Cone)
+  const sz = PARAMS.culturalPyramidSize;
+  const coneGeo = new THREE.ConeGeometry(sz, sz*2, 4);
+  coneGeo.rotateX(Math.PI); // Invert
+  const coneMat = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true, transparent: true, opacity: 0.8, depthTest: false});
+  const cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.position.y = 100;
+  group.add(cone);
+
+  // Dashed line to roof/ground
+  const points = [];
+  points.push(new THREE.Vector3(0, 100 - sz, 0));
+  points.push(new THREE.Vector3(0, 0, 0));
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+  const lineMat = new THREE.LineDashedMaterial({
+    color: 0xffffff,
+    linewidth: PARAMS.culturalLineWidth,
+    scale: 1,
+    dashSize: 3,
+    gapSize: 3,
+    transparent: true,
+    opacity: 0.5,
+    depthTest: false
+  });
+  const line = new THREE.Line(lineGeo, lineMat);
+  line.computeLineDistances();
+  group.add(line);
+
+  // Text Sprite
+  const sprite = createTextSprite(text);
+  sprite.position.y = 100 + sz + 10;
+  group.add(sprite);
+
+  // Animation metadata
+  group.userData = { isSiteMarker, initialY: 100, animOffset: Math.random() * Math.PI * 2 };
+
+  const lp = mercatorFromLngLat(lngLat[0], lngLat[1], 0);
+  group.position.set(lp.x, lp.y, lp.z);
+
+  return group;
+}
+
+function updateCulturalTags() {
+  if (!map || !glbCustomLayer || !glbCustomLayer.scene) return;
+
+  // Find cultural POIs
+  const features = map.querySourceFeatures('openmaptiles', { sourceLayer: 'poi' });
+  const targetClasses = ['museum', 'gallery', 'arts_centre', 'theatre', 'library', 'attraction', 'artwork'];
+
+  const currentFrameTags = new Set();
+
+  for (const feature of features) {
+    const cls = feature.properties.class || feature.properties.subclass;
+    if (targetClasses.includes(cls) && feature.properties.name) {
+      const name = feature.properties.name;
+      // Use coordinates of the feature (usually Point geometry for POI)
+      let coords = null;
+      if (feature.geometry.type === 'Point') coords = feature.geometry.coordinates;
+      else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') coords = turf.centerOfMass(feature).geometry.coordinates;
+
+      if (coords) {
+        const id = `${name}-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`;
+        currentFrameTags.add(id);
+
+        if (!createdCulturalTags.has(id)) {
+          const tag = createCulturalTag(name, coords);
+          tag.name = id;
+          culturalTagsGroup.add(tag);
+          createdCulturalTags.add(id);
+        }
+      }
+    }
+  }
+}
+
 function addSiteMarker(){
-  const el=document.createElement('div');el.id='site-marker-el';
-  el.innerHTML='<div style="position:relative;width:20px;height:20px"><div style="position:absolute;inset:0;border:1px solid rgba(255,255,255,.4);border-radius:50%;animation:pulse-ring 2.5s ease infinite"></div><div style="position:absolute;top:50%;left:50%;width:4px;height:4px;background:rgba(255,255,255,.75);border-radius:50%;transform:translate(-50%,-50%)"></div></div><div style="font-size:7px;color:rgba(255,255,255,.4);letter-spacing:2px;margin-top:3px;text-align:center;white-space:nowrap">PROJECT SITE</div>';
-  el.style.cssText='pointer-events:none';
-  new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([SITE.lng,SITE.lat]).addTo(map);
+  if (siteMarkerMesh) {
+    if(siteMarkerMesh.parent) siteMarkerMesh.parent.remove(siteMarkerMesh);
+  }
+  siteMarkerMesh = createCulturalTag('PROJECT SITE', [SITE.lng, SITE.lat], true);
+  // Ensure we add it after layer is init, we will hook it up in onAdd
 }
 
 /* ═══ GLB LOADER — ALL FILES VIA CUSTOM LAYER ═══ */
@@ -613,9 +774,23 @@ function loadAllGLBs(){
       this.renderer.shadowMap.enabled = shadowsEnabled;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+      // Infinite Grid Helper
+      this.gridHelper = new THREE.GridHelper(PARAMS.gridCellSize, PARAMS.gridCount * 2, 0xffffff, 0xffffff);
+      this.gridHelper.name = 'groundGrid';
+      this.gridHelper.material.transparent = true;
+      this.gridHelper.material.opacity = PARAMS.gridLineAlpha;
+      this.gridHelper.position.y = 0.5; // Slightly above zero to prevent z-fighting with map layer
+      this.scene.add(this.gridHelper);
+
       // Remote Players Group
       this.remotePlayersGroup = new THREE.Group();
       this.scene.add(this.remotePlayersGroup);
+
+      // Cultural Tags Group
+      this.scene.add(culturalTagsGroup);
+      if (siteMarkerMesh) {
+        culturalTagsGroup.add(siteMarkerMesh);
+      }
     },
     render(gl, matrix){
       // Correct matrix order: MapProjection * (Translation * Scale * Rotation)
@@ -720,6 +895,19 @@ function loadAllGLBs(){
         }
       }
 
+      // Animate cultural tags and site marker bobbing
+      const time = performance.now() / 1000;
+      culturalTagsGroup.children.forEach(tag => {
+        if(tag.userData && tag.userData.initialY !== undefined) {
+          tag.children.forEach(c => {
+            if(c.type === 'Mesh' || c.type === 'Sprite') { // Bob cone and text
+              const basePos = c.type === 'Mesh' ? 100 : 100 + PARAMS.culturalPyramidSize + 10;
+              c.position.y = basePos + Math.sin(time * 2 + tag.userData.animOffset) * 2;
+            }
+          });
+        }
+      });
+
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
       map.triggerRepaint();
@@ -731,17 +919,18 @@ function loadAllGLBs(){
   const loader = new THREE.GLTFLoader();
   GLB_FILES.forEach(filename => {
     loader.load(REPO_BASE + filename, (gltf) => {
-      const model = gltf.scene;
+      const model = gltf.scene; model.name = filename;
+      const isSubway = filename === 'subway_system.glb';
       model.traverse(ch => {
         if (ch.isMesh) {
           ch.castShadow = shadowsEnabled;
           ch.receiveShadow = shadowsEnabled;
           ch.material = new THREE.MeshStandardMaterial({
-            color: PARAMS.glbColor,
+            color: isSubway ? PARAMS.subwayMaterialColor : PARAMS.otherGlbMaterialColor,
             roughness: PARAMS.glbRoughness,
             metalness: PARAMS.glbMetalness,
             transparent: true,
-            opacity: PARAMS.glbOpacity,
+            opacity: isSubway ? PARAMS.subwayMaterialOpacity : PARAMS.otherGlbMaterialOpacity,
             side: THREE.DoubleSide
           });
         }
@@ -755,7 +944,122 @@ function loadAllGLBs(){
       document.getElementById('glb-status').textContent = '> ' + filename + ': error';
     });
   });
+
+  // Load Active Project
+  loadActiveProject('projects_glbs/G11_hyperobject.glb');
 }
+
+let activeProjectMesh = null;
+let activeProjectOriginalMaterial = null;
+const PROJECT_FILES = [
+  {name:'G11_HYPEROBJECT', file:'projects_glbs/G11_hyperobject.glb'},
+  {name:'FUTURE_PROJ_1', file:'projects_glbs/G11_hyperobject.glb'}, // Placeholders
+  {name:'FUTURE_PROJ_2', file:'projects_glbs/G11_hyperobject.glb'}
+];
+let currentProjectIndex = 0;
+
+// Preview Scene Setup
+let previewScene = new THREE.Scene();
+let previewCamera = new THREE.PerspectiveCamera(45, 230 / 140, 0.1, 1000);
+previewCamera.position.set(200, 200, 200);
+previewCamera.lookAt(0, 50, 0);
+let previewRenderer = null;
+let previewModel = null;
+
+function initPreviewRenderer() {
+  const canvas = document.getElementById('project-canvas');
+  previewRenderer = new THREE.WebGLRenderer({canvas: canvas, alpha: true, antialias: true});
+  previewRenderer.setSize(230, 140);
+
+  // Basic lighting for wireframe/lines
+  previewScene.add(new THREE.AmbientLight(0xffffff, 1.0));
+}
+
+function updatePreviewLoop() {
+  if (previewRenderer && previewScene && previewCamera) {
+    if (previewModel) {
+      previewModel.rotation.y += 0.01;
+    }
+    previewRenderer.render(previewScene, previewCamera);
+  }
+  requestAnimationFrame(updatePreviewLoop);
+}
+
+function loadActiveProject(filepath) {
+  if (activeProjectMesh && glbCustomLayer && glbCustomLayer.scene) {
+    glbCustomLayer.scene.remove(activeProjectMesh);
+  }
+  if (previewModel && previewScene) {
+    previewScene.remove(previewModel);
+    previewModel = null;
+  }
+
+  const loader = new THREE.GLTFLoader();
+  loader.load(filepath, (gltf) => {
+    activeProjectMesh = gltf.scene;
+    activeProjectOriginalMaterial = new THREE.MeshStandardMaterial({
+      color: PARAMS.otherGlbMaterialColor,
+      roughness: PARAMS.glbRoughness,
+      metalness: PARAMS.glbMetalness,
+      transparent: true,
+      opacity: PARAMS.otherGlbMaterialOpacity,
+      side: THREE.DoubleSide
+    });
+    activeProjectMesh.traverse(ch => {
+      if (ch.isMesh) {
+        ch.castShadow = shadowsEnabled;
+        ch.receiveShadow = shadowsEnabled;
+        ch.material = activeProjectOriginalMaterial;
+      }
+    });
+    if (glbCustomLayer && glbCustomLayer.scene) {
+      glbCustomLayer.scene.add(activeProjectMesh);
+    }
+
+    // Wireframe Preview setup
+    previewModel = activeProjectMesh.clone();
+    previewModel.traverse(ch => {
+      if (ch.isMesh) {
+        ch.material = new THREE.MeshBasicMaterial({
+          color: 0x4da8ff, // Brand color or generic cyan
+          wireframe: true,
+          transparent: true,
+          opacity: 0.6
+        });
+      }
+    });
+    // Center it roughly in the preview scene
+    const box = new THREE.Box3().setFromObject(previewModel);
+    const center = box.getCenter(new THREE.Vector3());
+    previewModel.position.x += (previewModel.position.x - center.x);
+    previewModel.position.y += (previewModel.position.y - center.y);
+    previewModel.position.z += (previewModel.position.z - center.z);
+
+    previewScene.add(previewModel);
+
+  }, undefined, (e) => {
+    console.error("Failed to load active project:", filepath, e);
+  });
+}
+
+function nextProject() {
+  currentProjectIndex = (currentProjectIndex + 1) % PROJECT_FILES.length;
+  updateProjectSelection();
+}
+
+function prevProject() {
+  currentProjectIndex = (currentProjectIndex - 1 + PROJECT_FILES.length) % PROJECT_FILES.length;
+  updateProjectSelection();
+}
+
+function updateProjectSelection() {
+  const p = PROJECT_FILES[currentProjectIndex];
+  document.getElementById('project-name').textContent = p.name;
+  loadActiveProject(p.file);
+}
+
+window.nextProject = nextProject;
+window.prevProject = prevProject;
 
 /* Manual upload */
 function setupGLB(){
@@ -771,11 +1075,537 @@ function setupGLB(){
     })};r.readAsArrayBuffer(f);}
 }
 
+/* ═══ TRAFFIC SIMULATOR (INJECTED) ═══ */
+let trafficGroup = new THREE.Group();
+const CFG = {
+  NUM_CARS: 80, CAR_LEN: 4.5, CAR_WID: 1.8, CAR_MAX_SPEED: 1.4,
+  CAR_ACCEL: 0.03, CAR_BRAKE: 0.07, CAR_HARD_BRAKE: 0.15,
+  FOLLOW_DIST: 12, STOP_LINE_DIST: 14,
+  AVE_LANE_RIGHT: 2.5, AVE_LANE_LEFT:  6.0, ST_LANE: 2.5,
+  LIGHT_GREEN: 280, LIGHT_YELLOW: 50, LIGHT_ALL_RED: 25,
+  STOP_WAIT: 65, PED_DETECT: 18, STUCK_LIMIT: 420,
+};
+const cars=[];let carId=0;
+
+function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+const AX={'12th':0,'11th':210,'HudBl':330,'10th':440,'Dyer':540,'9th':680,'8th':920};
+const SY={};const streetNames=[];for(let s=42;s>=25;s--){const nm=ordinal(s);SY[nm]=(42-s)*80;streetNames.push(nm);}
+const nodes=[],nodeMap={},adjList=[],edgeSet=[];let _nid=0;
+function addNode(ave,st){const key=ave+','+st;if(nodeMap[key]!==undefined)return nodeMap[key];const id=_nid++;nodeMap[key]=id;nodes.push({id,x:AX[ave],y:SY[st],ave,st,key,type:'none',lightState:'green-h',lightTimer:50+Math.floor(Math.random()*CFG.LIGHT_GREEN),occupants:new Set(),occupantDir:null,stopQ:[],stopW:new Map(),isBoundary:false,});adjList.push([]);return id;}
+function addEdge(id1,id2){if(adjList[id1].some(e=>e.to===id2))return;const a=nodes[id1],b=nodes[id2];const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy);const isAve=a.ave===b.ave;adjList[id1].push({to:id2,len,isAve});adjList[id2].push({to:id1,len,isAve});edgeSet.push({a:id1,b:id2,isAve,oneWay:false});}
+function addOneWay(id1,id2){if(adjList[id1].some(e=>e.to===id2))return;const a=nodes[id1],b=nodes[id2];const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy);const isAve=a.ave===b.ave;adjList[id1].push({to:id2,len,isAve});edgeSet.push({a:id1,b:id2,isAve,oneWay:true});}
+const ONE_WAY_SOUTH=new Set(['11th','9th']);const ONE_WAY_NORTH=new Set(['10th','8th']);
+const hwy12Data=[['42nd',5,SY['42nd']],['41st',3,SY['41st']],['39th',-2,SY['39th']],['34th',-5,SY['34th']],['30th',-5,SY['30th']],['29th',8,SY['29th']],['28th',25,SY['28th']],['27th',45,SY['27th']],['26th',68,SY['26th']],['25th',92,SY['25th']],];
+for(const[st,cx,cy]of hwy12Data){const key='12th,'+st;if(nodeMap[key]!==undefined)continue;const id=_nid++;nodeMap[key]=id;nodes.push({id,x:cx,y:cy,ave:'12th',st,key,type:'none',lightState:'green-h',lightTimer:50+Math.floor(Math.random()*CFG.LIGHT_GREEN),occupants:new Set(),occupantDir:null,stopQ:[],stopW:new Map(),isBoundary:false,});adjList.push([]);}
+const hwy12Sts=hwy12Data.map(d=>d[0]);for(let i=0;i<hwy12Sts.length-1;i++){addEdge(nodeMap['12th,'+hwy12Sts[i]],nodeMap['12th,'+hwy12Sts[i+1]]);}
+function buildAve(ave){for(const st of streetNames)addNode(ave,st);if(ONE_WAY_SOUTH.has(ave)){for(let i=0;i<streetNames.length-1;i++)addOneWay(nodeMap[ave+','+streetNames[i]],nodeMap[ave+','+streetNames[i+1]]);}else if(ONE_WAY_NORTH.has(ave)){for(let i=streetNames.length-1;i>0;i--)addOneWay(nodeMap[ave+','+streetNames[i]],nodeMap[ave+','+streetNames[i-1]]);}}
+buildAve('11th');const hbSts=['36th','35th','34th','33rd'];for(const st of hbSts)addNode('HudBl',st);for(let i=0;i<hbSts.length-1;i++)addEdge(nodeMap['HudBl,'+hbSts[i]],nodeMap['HudBl,'+hbSts[i+1]]);buildAve('10th');const dySts=['40th','39th','38th','37th','36th','35th','34th'];for(const st of dySts)addNode('Dyer',st);for(let i=0;i<dySts.length-1;i++){addOneWay(nodeMap['Dyer,'+dySts[i]],nodeMap['Dyer,'+dySts[i+1]]);}
+nodes[nodeMap['Dyer,40th']].isTunnelEntry=true;buildAve('9th');buildAve('8th');
+const TWO_WAY_STS=new Set(['42nd','34th','25th']);const stDirection={};for(const st of streetNames){if(TWO_WAY_STS.has(st))continue;const sn=parseInt(st);if(sn>=35&&sn<=41){stDirection[st]=(sn%2===1)?'w':'e';}else if(sn<=33){stDirection[st]=(sn%2===1)?'w':'e';}}
+function tryConnectDir(a1,a2,st){const k1=a1+','+st,k2=a2+','+st;if(nodeMap[k1]===undefined||nodeMap[k2]===undefined)return;const dir=stDirection[st];if(!dir){addEdge(nodeMap[k1],nodeMap[k2]);}else if(dir==='e'){addOneWay(nodeMap[k1],nodeMap[k2]);}else{addOneWay(nodeMap[k2],nodeMap[k1]);}}
+for(const st of streetNames){const sn=parseInt(st);if(hwy12Sts.includes(st))tryConnectDir('12th','11th',st);if(hbSts.includes(st))tryConnectDir('11th','HudBl',st);if(sn>=34||sn<=30)tryConnectDir('11th','10th',st);if(hbSts.includes(st))tryConnectDir('HudBl','10th',st);if(dySts.includes(st))tryConnectDir('10th','Dyer',st);if(sn<=38||sn>=42)tryConnectDir('10th','9th',st);if(dySts.includes(st)&&sn<=38)tryConnectDir('Dyer','9th',st);tryConnectDir('9th','8th',st);}
+const boundaryIds=[];for(const n of nodes){if(n.st==='42nd'||n.st==='25th'||n.ave==='8th'){if(adjList[n.id].length>0){n.isBoundary=true;boundaryIds.push(n.id);}}}
+const tunnelNode=nodeMap['Dyer,40th'];if(tunnelNode!==undefined){nodes[tunnelNode].isBoundary=true;boundaryIds.push(tunnelNode);}
+const majorAves=new Set(['11th','10th','9th','8th']);for(const n of nodes){const deg=adjList[n.id].length;if(deg<2)continue;if(n.ave==='HudBl'||n.ave==='Dyer'){n.type='stop';}else if(majorAves.has(n.ave)){n.type='light';}else if(n.ave==='12th'){const hasCrossStreet=adjList[n.id].some(e=>nodes[e.to].ave!=='12th');if(hasCrossStreet)n.type='light';}}
+const connIds=[];for(let i=0;i<nodes.length;i++)if(adjList[i].length>0)connIds.push(i);
+function isAveEdge(fromId,toId){return nodes[fromId].ave===nodes[toId].ave;}function isOneWayAve(fromId,toId){const ave=nodes[fromId].ave;return ave===nodes[toId].ave&&(ONE_WAY_SOUTH.has(ave)||ONE_WAY_NORTH.has(ave));}const OW_LANE_OFFSETS=[6.5,2.5,-1.5,-5.5];const OW_ST_OFFSETS=[2.5,-2.0];function isOneWaySt(fromId,toId){const a=nodes[fromId],b=nodes[toId];if(a.ave===b.ave)return false;const st=a.st;return!!stDirection[st];}
+function lanePos(fromId,toId,t,lane){const a=nodes[fromId],b=nodes[toId];const dx=b.x-a.x,dy=b.y-a.y;const len=Math.sqrt(dx*dx+dy*dy)||1;const nx=-dy/len,ny=dx/len;let offset;if(isOneWayAve(fromId,toId)){offset=OW_LANE_OFFSETS[Math.min(lane,3)];}else if(isOneWaySt(fromId,toId)){offset=OW_ST_OFFSETS[Math.min(lane,1)];}else if(isAveEdge(fromId,toId)){offset=lane===1?CFG.AVE_LANE_LEFT:CFG.AVE_LANE_RIGHT;}else{offset=CFG.ST_LANE;}return{x:a.x+dx*t+nx*offset,y:a.y+dy*t+ny*offset,angle:Math.atan2(dy,dx),};}
+function edgeDir(f,t){const a=nodes[f],b=nodes[t];return Math.abs(b.x-a.x)>Math.abs(b.y-a.y)?'h':'v';}
+function turnType(n0,n1,n2){const dx1=nodes[n1].x-nodes[n0].x,dy1=nodes[n1].y-nodes[n0].y;const dx2=nodes[n2].x-nodes[n1].x,dy2=nodes[n2].y-nodes[n1].y;const cross=dx1*dy2-dy1*dx2;if(Math.abs(cross)<1)return'straight';return cross>0?'right':'left';}
+function chooseLane(car){if(isOneWayAve(car.from,car.to)){if(car.pi+1>=car.path.length)return Math.floor(Math.random()*4);const next=car.path[car.pi+1];const turn=turnType(car.from,car.to,next);if(turn==='right')return 0;if(turn==='left')return 3;return 1+Math.floor(Math.random()*2);}if(isOneWaySt(car.from,car.to)){if(car.pi+1>=car.path.length)return Math.floor(Math.random()*2);const next=car.path[car.pi+1];const turn=turnType(car.from,car.to,next);if(turn==='right')return 0;if(turn==='left')return 1;return Math.floor(Math.random()*2);}if(!isAveEdge(car.from,car.to))return 0;if(car.pi+1>=car.path.length)return 0;const next=car.path[car.pi+1];const turn=turnType(car.from,car.to,next);if(turn==='left')return 1;if(turn==='right')return 0;return car.lane;}
+function astar(s,e){if(s===e)return null;const gS=new Map([[s,0]]),fS=new Map([[s,hr(s,e)]]),from=new Map();const open=new Set([s]),closed=new Set();while(open.size){let cur=-1,best=Infinity;for(const id of open){const f=fS.get(id)??Infinity;if(f<best){best=f;cur=id;}}if(cur===e){const p=[cur];while(from.has(cur)){cur=from.get(cur);p.unshift(cur);}return p;}open.delete(cur);closed.add(cur);if(!adjList[cur])continue;const cg=gS.get(cur)??Infinity;for(const{to,len}of adjList[cur]){if(closed.has(to))continue;const tg=cg+len;if(tg<(gS.get(to)??Infinity)){from.set(to,cur);gS.set(to,tg);fS.set(to,tg+hr(to,e));open.add(to);}}}return null;}
+function hr(a,b){return Math.abs(nodes[a].x-nodes[b].x)+Math.abs(nodes[a].y-nodes[b].y);}
+function tickLights(){for(const n of nodes){if(n.type!=='light')continue;if(--n.lightTimer<=0)switch(n.lightState){case'green-h':n.lightState='yellow-h';n.lightTimer=CFG.LIGHT_YELLOW;break;case'yellow-h':n.lightState='all-red-hv';n.lightTimer=CFG.LIGHT_ALL_RED;break;case'all-red-hv':n.lightState='green-v';n.lightTimer=CFG.LIGHT_GREEN;break;case'green-v':n.lightState='yellow-v';n.lightTimer=CFG.LIGHT_YELLOW;break;case'yellow-v':n.lightState='all-red-vh';n.lightTimer=CFG.LIGHT_ALL_RED;break;case'all-red-vh':n.lightState='green-h';n.lightTimer=CFG.LIGHT_GREEN;break;}}}
+function greenFor(n,d){return(d==='h'&&n.lightState==='green-h')||(d==='v'&&n.lightState==='green-v');}function yellowFor(n,d){return(d==='h'&&n.lightState==='yellow-h')||(d==='v'&&n.lightState==='yellow-v');}
+function canEnter(car,nid){const n=nodes[nid];if(n.type==='none')return true;const d=edgeDir(car.from,car.to);if(n.type==='light'){if(!greenFor(n,d)&&!yellowFor(n,d))return false;if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;return true;}if(n.type==='stop'){if(!n.stopQ.includes(car.id)){n.stopQ.push(car.id);n.stopW.set(car.id,0);}const w=n.stopW.get(car.id)??0;n.stopW.set(car.id,w+1);if(n.stopQ[0]!==car.id)return false;if(w<CFG.STOP_WAIT)return false;if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;return true;}return true;}
+function markEnter(c,nid){const n=nodes[nid];n.occupants.add(c.id);n.occupantDir=edgeDir(c.from,c.to);const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);}function markLeave(c,nid){const n=nodes[nid];n.occupants.delete(c.id);if(!n.occupants.size)n.occupantDir=null;}function cleanupCar(c){if(c.inInt!==null){markLeave(c,c.inInt);c.inInt=null;}if(c.waitAt!==null){const n=nodes[c.waitAt];const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);c.waitAt=null;}}
+const SH=20;let shMap={};function shBuild(){shMap={};for(const c of cars){const k=(Math.floor(c.x/SH))+','+(Math.floor(c.y/SH));(shMap[k]||(shMap[k]=[])).push(c);}}function shQ(x,y,r){const out=[],cr=Math.ceil(r/SH),cx=Math.floor(x/SH),cy=Math.floor(y/SH);for(let dx=-cr;dx<=cr;dx++)for(let dy=-cr;dy<=cr;dy++){const a=shMap[(cx+dx)+','+(cy+dy)];if(a)for(let i=0;i<a.length;i++)out.push(a[i]);}return out;}
+function rndBoundary(){const weighted=[];for(const id of boundaryIds){const n=nodes[id];if(n.st==='42nd'||n.st==='25th')weighted.push(id,id,id,id,id);else weighted.push(id);}return weighted[Math.floor(Math.random()*weighted.length)];}
+function rndNode(){return connIds[Math.floor(Math.random()*connIds.length)];}
+function makeCar(fromBoundary){for(let a=0;a<40;a++){const s=fromBoundary?rndBoundary():rndNode();if(adjList[s].length===0)continue;let g;for(let t=0;t<30;t++){g=rndBoundary();if(g!==s)break;}if(g===s)continue;const path=astar(s,g);if(!path||path.length<2)continue;const c={id:carId++,from:path[0],to:path[1],t:Math.random()*0.15,speed:fromBoundary?CFG.CAR_MAX_SPEED*0.4:0,maxSpd:CFG.CAR_MAX_SPEED*(0.6+Math.random()*0.4),path,pi:1,goal:g,x:0,y:0,ang:0,lane:0,inInt:null,waitAt:null,stuck:0,stopped:false,len:CFG.CAR_LEN+Math.random()*1.0,wid:CFG.CAR_WID,};c.lane=chooseLane(c);syncPos(c);return c;}return null;}
+function syncPos(c){const p=lanePos(c.from,c.to,c.t,c.lane);c.x=p.x;c.y=p.y;c.ang=p.angle;}
+function newGoal(c){for(let t=0;t<30;t++){const g=rndBoundary();if(g===c.to)continue;const p=astar(c.to,g);if(p&&p.length>=2){c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.lane=chooseLane(c);return;}}}
+function forceRepath(c){if(c.isHwy){respawnHwy(c);return;}if(c.isTunnel){respawnTunnel(c);return;}cleanupCar(c);for(let t=0;t<20;t++){const g=rndBoundary();if(g===c.from)continue;const p=astar(c.from,g);if(p&&p.length>=2){c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.speed=0;c.stuck=0;c.lane=chooseLane(c);return;}}}
+for(let i=0;i<CFG.NUM_CARS;i++){const c=makeCar(i<CFG.NUM_CARS*0.3);if(c)cars.push(c);}
+const hwyTop=nodeMap['12th,42nd'],hwyBot=nodeMap['12th,25th'];const HWY_COUNT=18;
+function makeHwyCar(){const goingSouth=Math.random()<0.5;const s=goingSouth?hwyTop:hwyBot;const g=goingSouth?hwyBot:hwyTop;const path=astar(s,g);if(!path||path.length<2)return null;const c={id:carId++,from:path[0],to:path[1],t:Math.random()*0.5,speed:CFG.CAR_MAX_SPEED*0.8,maxSpd:CFG.CAR_MAX_SPEED*(0.9+Math.random()*0.3),path,pi:1,goal:g,x:0,y:0,ang:0,lane:Math.random()<0.5?0:1,inInt:null,waitAt:null,stuck:0,stopped:false,len:CFG.CAR_LEN+Math.random()*1.5,wid:CFG.CAR_WID,isHwy:true,};syncPos(c);return c;}
+function respawnHwy(c){cleanupCar(c);const nc=makeHwyCar();if(nc)Object.assign(c,nc);}
+for(let i=0;i<HWY_COUNT;i++){const c=makeHwyCar();if(c)cars.push(c);}
+const TUNNEL_COUNT=10;const tunnelStart=nodeMap['Dyer,40th'];
+function makeTunnelCar(){const s=tunnelStart;if(!s&&s!==0)return null;for(let a=0;a<20;a++){const g=rndBoundary();if(g===s)continue;const path=astar(s,g);if(!path||path.length<2)continue;const c={id:carId++,from:path[0],to:path[1],t:Math.random()*0.3,speed:CFG.CAR_MAX_SPEED*0.6,maxSpd:CFG.CAR_MAX_SPEED*(0.7+Math.random()*0.3),path,pi:1,goal:g,x:0,y:0,ang:0,lane:Math.floor(Math.random()*2),inInt:null,waitAt:null,stuck:0,stopped:false,len:CFG.CAR_LEN+Math.random()*1.0,wid:CFG.CAR_WID,isTunnel:true,};syncPos(c);return c;}return null;}
+function respawnTunnel(c){cleanupCar(c);const nc=makeTunnelCar();if(nc)Object.assign(c,nc);}
+for(let i=0;i<TUNNEL_COUNT;i++){const c=makeTunnelCar();if(c)cars.push(c);}
+let tFrame=0;
+
+// Conversion mapping
+// traffic_sim.html sets:
+// 12th = 0, 11th = 210, 10th = 440, 9th = 680, 8th = 920
+// 42nd = 0, 41st = 80, 34th = 640, 30th = 960, 25th = 1360
+// map origin approx is 33rd/34th street and 10th/11th avenue
+
+// Map traffic simulator coordinates (x,y) to true Lng/Lat
+// 12th Ave & 42nd St = {x: 0, y: 0}       => [-74.0016, 40.7621]
+// 8th Ave & 25th St = {x: 920, y: 1360}  => [-73.9960, 40.7455]
+// These are approximate bounds for Hudson Yards area mapping.
+function getTrafficLngLat(tx, ty) {
+    const minLng = -74.0035; // 12th ave approx
+    const maxLng = -73.9940; // 8th ave approx
+    const maxLat = 40.7635;  // 42nd st approx
+    const minLat = 40.7470;  // 25th st approx
+
+    const xRatio = tx / 920;
+    const yRatio = ty / 1360;
+
+    // Avenues (X) go from West to East (Lng increases)
+    // Streets (Y) go from North to South (Lat decreases)
+
+    // We will use a more precise affine transform based on actual coordinates
+    // to match the map grid angle. Hudson yards streets are rotated ~29 degrees.
+    // Let's define 3 anchor points for an affine transform:
+    // P0: 12th & 34th (x: 0, y: 640) => [ -74.005118, 40.755291 ]
+    // P1: 8th & 34th (x: 920, y: 640) => [ -73.993358, 40.752317 ]
+    // P2: 12th & 42nd (x: 0, y: 0) => [ -73.999601, 40.762221 ]
+
+    // Vector X (along 34th St from 12th to 8th):
+    // dx = P1.lng - P0.lng = 0.011760
+    // dy = P1.lat - P0.lat = -0.002974
+    // Traffic dx = 920
+
+    // Vector Y (along 12th Ave from 34th to 42nd):
+    // dx = P2.lng - P0.lng = 0.005517
+    // dy = P2.lat - P0.lat = 0.006930
+    // Traffic dy = -640
+
+    const tx_diff = tx - 0;
+    const ty_diff = ty - 640;
+
+    const lng = -74.005118 + (tx_diff / 920) * 0.011760 + (ty_diff / -640) * 0.005517;
+    const lat = 40.755291 + (tx_diff / 920) * -0.002974 + (ty_diff / -640) * 0.006930;
+
+    return { lng, lat };
+}
+function tickCars(){
+  shBuild();
+  for(const c of cars){
+    const eLen=Math.sqrt((nodes[c.to].x-nodes[c.from].x)**2+(nodes[c.to].y-nodes[c.from].y)**2)||1;
+    let tgt=c.maxSpd;c.stopped=false;
+    const dEnd=(1-c.t)*eLen;
+    const cosA=Math.cos(c.ang),sinA=Math.sin(c.ang);
+    if(c.inInt!==null){
+      if(c.from===c.inInt&&c.t>0.15){markLeave(c,c.inInt);c.inInt=null;}
+      else if(c.from!==c.inInt&&c.to!==c.inInt){markLeave(c,c.inInt);c.inInt=null;}
+    }
+    const near=shQ(c.x,c.y,CFG.FOLLOW_DIST*1.5);
+    let cd=Infinity,cs=0;
+    for(const o of near){
+      if(o.id===c.id)continue;
+      const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
+      if(dx*cosA+dy*sinA<=0)continue;
+      if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue;
+      const cross=Math.abs(dx*sinA-dy*cosA);
+      if(cross>CFG.CAR_WID*2.5)continue;
+      if(dist<cd){cd=dist;cs=o.speed;}
+    }
+    if(cd<CFG.FOLLOW_DIST){
+      const gap=Math.max(0,cd-c.len*1.2);
+      tgt=Math.min(tgt,cs+(gap/CFG.FOLLOW_DIST)*c.maxSpd*0.4);
+      if(cd<c.len*2){tgt=0;c.stopped=true;}
+    }
+    const an=nodes[c.to];
+    if(an.type!=='none'&&c.inInt===null&&dEnd<CFG.STOP_LINE_DIST*2.5){
+      const ok=canEnter(c,c.to);
+      if(!ok){c.waitAt=c.to;if(dEnd<CFG.STOP_LINE_DIST){tgt=0;c.stopped=true;}else{tgt=Math.min(tgt,c.maxSpd*((dEnd-CFG.STOP_LINE_DIST)/CFG.STOP_LINE_DIST)*0.35);}}
+      else if(dEnd<CFG.STOP_LINE_DIST){markEnter(c,c.to);c.inInt=c.to;c.waitAt=null;}
+      else{const dir=edgeDir(c.from,c.to);if(yellowFor(an,dir)&&dEnd>CFG.STOP_LINE_DIST*1.6)tgt=Math.min(tgt,0.25);}
+    }
+    // Omit pedestrian check from integration
+    if(c.speed<tgt)c.speed=Math.min(c.speed+CFG.CAR_ACCEL,tgt);
+    else if(c.speed>tgt)c.speed=Math.max(c.speed-(tgt===0?CFG.CAR_HARD_BRAKE:CFG.CAR_BRAKE),0);
+    if(c.speed<0.04){c.stuck++;if(c.stuck>CFG.STUCK_LIMIT)forceRepath(c);}else c.stuck=0;
+    c.t+=c.speed/eLen;
+    if(c.t>=1){
+      c.t=0;
+      if(nodes[c.to].isBoundary&&c.pi>=c.path.length-1){
+        cleanupCar(c);
+        if(c.isHwy){respawnHwy(c);}
+        else if(c.isTunnel){respawnTunnel(c);}
+        else{const nc=makeCar(true);if(nc)Object.assign(c,nc);else newGoal(c);}
+        continue;
+      }
+      if(c.pi>=c.path.length-1){
+        if(c.isHwy){respawnHwy(c);continue;}
+        if(c.isTunnel){respawnTunnel(c);continue;}
+        newGoal(c);
+      }
+      else{
+        c.pi++;c.from=c.to;c.to=c.path[c.pi];
+        if(!adjList[c.from].some(e=>e.to===c.to)){const np=astar(c.from,c.goal);if(np&&np.length>=2){c.path=np;c.pi=1;c.to=np[1];}else newGoal(c);}
+        c.lane=chooseLane(c);
+      }
+      c.t=Math.max(0,Math.min(c.t,0.99));
+    }
+    syncPos(c);
+
+    // Update 3D visualization
+    if(!c.mesh && glbCustomLayer && glbCustomLayer.scene){
+        c.mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(c.wid, c.wid, c.len),
+            new THREE.MeshBasicMaterial({color: PARAMS.carColor})
+        );
+        trafficGroup.add(c.mesh);
+    }
+    if(c.mesh) {
+        // Map 2D traffic coordinate to true GPS, then to ThreeJS mercator offset
+        const gps = getTrafficLngLat(c.x, c.y);
+        const lp = mercatorFromLngLat(gps.lng, gps.lat, 0);
+        c.mesh.position.set(lp.x, lp.y, lp.z);
+
+        // Match rotation to the street grid angle + simulation angle
+        // HUD street angle is ~29 degrees (0.506 rad) counter-clockwise from East.
+        // Simulation Y is down, so we subtract it from map rotation
+        c.mesh.rotation.y = -c.ang - 0.506;
+    }
+  }
+  tFrame++;
+  if(tFrame%90===0){const ids=new Set(cars.map(c=>c.id));for(const n of nodes){for(const id of n.occupants)if(!ids.has(id))n.occupants.delete(id);if(!n.occupants.size)n.occupantDir=null;n.stopQ=n.stopQ.filter(id=>ids.has(id));for(const[id]of n.stopW)if(!ids.has(id))n.stopW.delete(id);}}
+}
+
+/* ═══ SOLAR ANALYZER (INJECTED) ═══ */
+let isAnalyzing = false;
+let isSolarLayerActive = false;
+
+function toggleSolarLayer() {
+  isSolarLayerActive = !isSolarLayerActive;
+  const btn = document.getElementById('btn-toggle-solar');
+  btn.classList.toggle('on');
+  btn.style.color = isSolarLayerActive ? 'var(--t1)' : 'var(--t3)';
+
+  if (activeProjectMesh) {
+    if (isSolarLayerActive && activeProjectMesh.userData.solarMaterial) {
+      activeProjectMesh.traverse(ch => {
+        if (ch.isMesh) {
+          ch.material = activeProjectMesh.userData.solarMaterial;
+        }
+      });
+      document.getElementById('solar-legend').style.display = 'flex';
+    } else {
+      activeProjectMesh.traverse(ch => {
+        if (ch.isMesh) {
+          ch.material = activeProjectOriginalMaterial;
+        }
+      });
+      document.getElementById('solar-legend').style.display = 'none';
+    }
+  }
+}
+
+function getLadybugColor(t) {
+    const colors = [
+        new THREE.Color(0x0000ff), // Blue
+        new THREE.Color(0x00ffff), // Cyan
+        new THREE.Color(0x00ff00), // Green
+        new THREE.Color(0xffff00), // Yellow
+        new THREE.Color(0xff0000)  // Red
+    ];
+    const p = t * (colors.length - 1);
+    const index = Math.floor(p);
+    const frac = p - index;
+    if (index >= colors.length - 1) return colors[colors.length - 1];
+    return colors[index].clone().lerp(colors[index + 1], frac);
+}
+
+function getSunVector(dateObj, lat, lon, northOffsetRad) {
+    const sunPos = SunCalc.getPosition(dateObj, lat, lon);
+    if (sunPos.altitude <= 0) return null; // Nighttime
+
+    const phi = sunPos.altitude;
+    const theta = sunPos.azimuth + northOffsetRad;
+
+    const x = Math.cos(phi) * -Math.sin(theta);
+    const y = Math.sin(phi);
+    const z = Math.cos(phi) * Math.cos(theta);
+
+    return new THREE.Vector3(x, y, z).normalize();
+}
+
+function prepareAnalysisGeometry(offsetAmount) {
+    let analysisVertices = [];
+
+    // Ensure all matrices reflect any Master/Target/Context transforms
+    if(glbCustomLayer && glbCustomLayer.scene) {
+        glbCustomLayer.scene.updateMatrixWorld(true);
+    }
+
+    if(!activeProjectMesh) return analysisVertices;
+
+    // We create a specific material for analysis representation
+    const analysisMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff, roughness: 1.0, metalness: 0.0, side: THREE.DoubleSide, vertexColors: true
+    });
+    activeProjectMesh.userData.solarMaterial = analysisMat;
+
+    activeProjectMesh.traverse(child => {
+        if (child.isMesh) {
+            child.material = analysisMat;
+            child.updateMatrixWorld();
+
+            const geo = child.geometry;
+            if (!geo.attributes.normal) geo.computeVertexNormals();
+
+            const posAttr = geo.attributes.position;
+            const normAttr = geo.attributes.normal;
+
+            const colorArr = new Float32Array(posAttr.count * 3);
+            geo.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+
+            for (let i = 0; i < posAttr.count; i++) {
+                const vertex = new THREE.Vector3().fromBufferAttribute(posAttr, i);
+                vertex.applyMatrix4(child.matrixWorld);
+
+                const normal = new THREE.Vector3().fromBufferAttribute(normAttr, i);
+                const normalMatrix = new THREE.Matrix3().getNormalMatrix(child.matrixWorld);
+                normal.applyMatrix3(normalMatrix).normalize();
+
+                // Offset slightly along normal to prevent self-shadowing acne
+                vertex.add(normal.clone().multiplyScalar(offsetAmount));
+
+                analysisVertices.push({
+                    mesh: child,
+                    index: i,
+                    pos: vertex,
+                    normal: normal,
+                    hits: 0
+                });
+            }
+        }
+    });
+    return analysisVertices;
+}
+
+async function runAnalysis() {
+    if (isAnalyzing) return;
+    if (!activeProjectMesh) {
+        document.getElementById('error-msg').textContent = "Wait for active project to load.";
+        document.getElementById('error-msg').style.display = 'block';
+        setTimeout(()=>document.getElementById('error-msg').style.display = 'none', 3000);
+        return;
+    }
+
+    isAnalyzing = true;
+    document.getElementById('analysis-progress').style.display = 'block';
+    document.getElementById('solar-legend').style.display = 'none';
+    const btn = document.getElementById('btn-run-analysis');
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+
+    const lat = SITE.lat;
+    const lon = SITE.lng;
+    const northOffsetRad = 0;
+
+    const startD = new Date(document.getElementById('solar-start-date').value + "T00:00:00");
+    const endD = new Date(document.getElementById('solar-end-date').value + "T00:00:00");
+
+    const tStartStr = document.getElementById('solar-start-time').value.split(':');
+    const tEndStr = document.getElementById('solar-end-time').value.split(':');
+    const tStart = parseInt(tStartStr[0]) + parseInt(tStartStr[1])/60;
+    const tEnd = parseInt(tEndStr[0]) + parseInt(tEndStr[1])/60;
+
+    // Fixed steps for UI simplicity
+    const dStep = 1;
+    const hStep = 0.5;
+
+    const sunRays = [];
+    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + dStep)) {
+        for (let t = tStart; t <= tEnd; t += hStep) {
+            const evalDate = new Date(d);
+            const hrs = Math.floor(t);
+            const mins = Math.floor((t - hrs) * 60);
+            evalDate.setHours(hrs, mins, 0);
+
+            const vec = getSunVector(evalDate, lat, lon, northOffsetRad);
+            if (vec) sunRays.push(vec);
+        }
+    }
+
+    if (sunRays.length === 0) {
+        cleanupAnalysisUI();
+        return;
+    }
+
+    // --- GPU HARDWARE ACCELERATION SETUP ---
+    glbCustomLayer.scene.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    box.setFromObject(activeProjectMesh);
+
+    // Include the main static GLBs as context for shadows
+    glbCustomLayer.scene.children.forEach(c => {
+      if(c !== activeProjectMesh && c !== culturalTagsGroup && c !== glbCustomLayer.remotePlayersGroup && c !== trafficGroup && c !== glbCustomLayer.gridHelper && !c.isLight) {
+        const cBox = new THREE.Box3().setFromObject(c);
+        if(!cBox.isEmpty()) box.union(cBox);
+      }
+    });
+
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    const offsetAmount = maxDim * 0.0001;
+    const analysisVertices = prepareAnalysisGeometry(offsetAmount);
+
+    const rtSize = parseInt(document.getElementById('solar-res').value) || 1024;
+    const rt = new THREE.WebGLRenderTarget(rtSize, rtSize, {
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        format: THREE.RGBAFormat
+    });
+    const depthMat = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.RGBADepthPacking,
+        side: THREE.DoubleSide
+    });
+
+    // Cache old materials and apply DepthMaterial exclusively for shadow testing
+    const origMats = new Map();
+    glbCustomLayer.scene.traverse(child => {
+        if (child.isMesh && child.parent !== culturalTagsGroup && child.parent !== glbCustomLayer.remotePlayersGroup && child.parent !== trafficGroup) {
+            origMats.set(child, child.material);
+            child.material = depthMat;
+        }
+    });
+
+    // Hide non-occluding scene props
+    const hideObjects = [glbCustomLayer.gridHelper, culturalTagsGroup, trafficGroup];
+    hideObjects.forEach(obj => {if(obj) obj.visible = false});
+
+    const oldClearColor = glbCustomLayer.renderer.getClearColor(new THREE.Color());
+    const oldClearAlpha = glbCustomLayer.renderer.getClearAlpha();
+    glbCustomLayer.renderer.setClearColor(0xffffff, 1);
+
+    const sunCam = new THREE.OrthographicCamera(-maxDim, maxDim, maxDim, -maxDim, maxDim * 0.1, maxDim * 4);
+    const buffer = new Uint8Array(rtSize * rtSize * 4);
+
+    let rayIndex = 0;
+    const progressBar = document.getElementById('progress-bar');
+    const progressPct = document.getElementById('progress-pct');
+
+    function processChunk() {
+        const startTime = performance.now();
+        while (rayIndex < sunRays.length && performance.now() - startTime < 30) {
+            const rayDir = sunRays[rayIndex];
+
+            sunCam.position.copy(center).add(rayDir.clone().multiplyScalar(maxDim * 2));
+            sunCam.lookAt(center);
+            sunCam.updateMatrixWorld();
+            sunCam.updateProjectionMatrix();
+
+            glbCustomLayer.renderer.setRenderTarget(rt);
+            glbCustomLayer.renderer.clear();
+            glbCustomLayer.renderer.render(glbCustomLayer.scene, sunCam);
+            glbCustomLayer.renderer.readRenderTargetPixels(rt, 0, 0, rtSize, rtSize, buffer);
+
+            const projMat = new THREE.Matrix4().multiplyMatrices(sunCam.projectionMatrix, sunCam.matrixWorldInverse);
+
+            for (let i = 0; i < analysisVertices.length; i++) {
+                const v = analysisVertices[i];
+                if (v.normal.dot(rayDir) < -0.05) continue;
+
+                const vPos = v.pos.clone();
+                vPos.applyMatrix4(projMat);
+                if (vPos.x < -1 || vPos.x > 1 || vPos.y < -1 || vPos.y > 1 || vPos.z < -1 || vPos.z > 1) continue;
+
+                let px = Math.floor((vPos.x * 0.5 + 0.5) * rtSize);
+                let py = Math.floor((vPos.y * 0.5 + 0.5) * rtSize);
+                px = Math.max(0, Math.min(rtSize - 1, px));
+                py = Math.max(0, Math.min(rtSize - 1, py));
+
+                const idx = (py * rtSize + px) * 4;
+                const r = buffer[idx] / 255;
+                const g = buffer[idx+1] / 255;
+                const b = buffer[idx+2] / 255;
+                const a = buffer[idx+3] / 255;
+                const sceneDepth = r + (g / 256) + (b / 65536) + (a / 16777216);
+
+                const vertexDepth = vPos.z * 0.5 + 0.5;
+
+                if (vertexDepth <= sceneDepth + 0.001) {
+                    v.hits++;
+                }
+            }
+            rayIndex++;
+        }
+
+        const pct = Math.floor((rayIndex / sunRays.length) * 100);
+        progressBar.style.width = `${pct}%`;
+        progressPct.textContent = `${pct}%`;
+
+        if (rayIndex < sunRays.length) {
+            requestAnimationFrame(processChunk);
+        } else {
+            // --- CLEANUP AND RESTORE ---
+            hideObjects.forEach(obj => {if(obj) obj.visible = true});
+            glbCustomLayer.renderer.setClearColor(oldClearColor, oldClearAlpha);
+
+            glbCustomLayer.scene.traverse(child => {
+                if (child.isMesh && origMats.has(child)) {
+                    child.material = origMats.get(child);
+                }
+            });
+
+            glbCustomLayer.renderer.setRenderTarget(null);
+            rt.dispose();
+            depthMat.dispose();
+
+            applyAnalysisColors(analysisVertices, sunRays.length, dStep, hStep);
+        }
+    }
+    requestAnimationFrame(processChunk);
+}
+
+function applyAnalysisColors(analysisVertices, totalRays, dStep, hStep) {
+    let maxHits = 0;
+    analysisVertices.forEach(v => { if (v.hits > maxHits) maxHits = v.hits; });
+
+    if (maxHits === 0) maxHits = 1;
+
+    analysisVertices.forEach(v => {
+        const ratio = v.hits / maxHits;
+        const c = getLadybugColor(ratio);
+        const colorsAttr = v.mesh.geometry.attributes.color;
+        colorsAttr.setXYZ(v.index, c.r, c.g, c.b);
+    });
+
+    if(activeProjectMesh){
+      activeProjectMesh.traverse(child => {
+          if (child.isMesh) child.geometry.attributes.color.needsUpdate = true;
+      });
+    }
+
+    const maxHours = (maxHits * dStep * hStep).toFixed(1);
+    document.getElementById('leg-max').textContent = maxHours + ' h';
+    document.getElementById('leg-mid').textContent = (maxHours / 2).toFixed(1) + ' h';
+
+    // Automatically show solar heatmap
+    if(!isSolarLayerActive) toggleSolarLayer();
+
+    cleanupAnalysisUI();
+}
+
+function cleanupAnalysisUI() {
+    isAnalyzing = false;
+    document.getElementById('analysis-progress').style.display = 'none';
+    const btn = document.getElementById('btn-run-analysis');
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'auto';
+}
+
 /* ═══ TRANSIT — EXACT LOGIC FROM YOUR WORKING HTML ═══ */
 const TX={LAT:40.7527,LON:-74.0017,RADIUS_NM:PARAMS.flightApiRadius};
 const KM_LAT=111.32,KM_LON=111.32*Math.cos(TX.LAT*Math.PI/180);
 let transitVisible=true;
 const simMarkers=new Map(),flightMarkers=new Map();
+let transitGroup = new THREE.Group();
 
 const SIM_ROUTES=[
   {id:'f_weehawken',type:'ferry',name:'NYWW Weehawken',speed:35,alt:0,fleet:2,path:[{lat:40.7618,lon:-74.0055},{lat:40.7625,lon:-74.008},{lat:40.768,lon:-74.0095},{lat:40.776,lon:-74.012}]},
@@ -822,29 +1652,51 @@ SIM_ROUTES.forEach(route=>{
 
 function easeIO(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2}
 
+function mercatorFromLngLat(lng, lat, alt=0) {
+  const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], alt);
+  const mScale = mc.meterInMercatorCoordinateUnits();
+
+  // Transform to local GLB origin coordinate space
+  const og = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
+  // Reversing the translation and scale from glbCustomLayer.render
+  const x = (mc.x - og.x) / mScale;
+  const z = (mc.y - og.y) / mScale;
+  const y = (mc.z - og.z) / mScale;
+  return {x, y, z};
+}
+
 function initTransit(){
-  const colors = { ferry: '#cc88ff', subway: '#aa88ff', bus: '#88ffaa' };
-  const sizes = { ferry: 8, subway: 6, bus: 5 };
+  if(glbCustomLayer && glbCustomLayer.scene) {
+    glbCustomLayer.scene.add(transitGroup);
+  }
+
+  const sizes = { ferry: 6, subway: 4, bus: 3 };
 
   SIM_ROUTES.forEach(route => {
     for(let j = 0; j < route.fleet; j++){
       const id = `${route.id}_v${j}`;
-      const el = document.createElement('div');
-      const sz = Math.round(sizes[route.type] * PARAMS.transitMarkerScale);
-      const c = colors[route.type];
+      const sz = sizes[route.type] * PARAMS.transitIconScale;
+      const c = PARAMS.transitGroupColors[route.type];
 
-      el.innerHTML = `<div style="width:${sz}px;height:${sz}px;background:${c};border-radius:50%;box-shadow:0 0 8px ${c};border:1px solid rgba(255,255,255,0.3)"></div>`;
-      el.style.cssText = 'pointer-events:none;';
+      const geo = new THREE.BoxGeometry(sz, sz, sz);
+      const mat = new THREE.MeshBasicMaterial({color: c, depthTest: false});
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 999;
+      transitGroup.add(mesh);
 
-      const marker = new maplibregl.Marker({element: el, anchor: 'center'})
-        .setLngLat([SITE.lng, SITE.lat])
-        .addTo(map);
-
-      simMarkers.set(id, {marker, route, idx: j, type: route.type});
+      simMarkers.set(id, {mesh, route, idx: j, type: route.type});
     }
   });
+  if(glbCustomLayer && glbCustomLayer.scene) {
+    glbCustomLayer.scene.add(trafficGroup);
+  }
+
   fetchFlights();setInterval(fetchFlights,PARAMS.flightApiInterval);
-  setInterval(updateSim,50);
+  setInterval(()=>{
+    updateSim();
+    tickLights();
+    tickCars();
+  },50);
 }
 
 async function fetchFlights(){
@@ -859,14 +1711,22 @@ async function fetchFlights(){
     if(!ac.lat||!ac.lon)return;seen.add(ac.hex);
     const isHeli=(ac.category==='A7'||ac.category==='A07');
     if(!flightMarkers.has(ac.hex)){
-      const d=document.createElement('div');const cv=isHeli?'#ffcc66':'#66ddff';const sz=isHeli?6:7;
-      d.innerHTML=`<div style="width:${sz}px;height:${sz}px;background:${cv};border-radius:${isHeli?'50%':'1px'};box-shadow:0 0 8px ${cv};border:1px solid rgba(255,255,255,0.3)"></div>`;
-      d.style.cssText='pointer-events:none;';
-      const marker=new maplibregl.Marker({element:d,anchor:'center'}).setLngLat([ac.lon,ac.lat]).addTo(map);
-      flightMarkers.set(ac.hex,{marker,type:isHeli?'heli':'plane'});
-    }else{flightMarkers.get(ac.hex).marker.setLngLat([ac.lon,ac.lat])}
+      const c = isHeli ? PARAMS.transitGroupColors.heli : PARAMS.transitGroupColors.plane;
+      const sz = (isHeli ? 4 : 5) * PARAMS.transitIconScale;
+      const geo = isHeli ? new THREE.SphereGeometry(sz, 8, 8) : new THREE.ConeGeometry(sz, sz*2, 4);
+      const mat = new THREE.MeshBasicMaterial({color: c, depthTest: false});
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.renderOrder = 999;
+      if(!isHeli) mesh.rotateX(Math.PI/2);
+      transitGroup.add(mesh);
+
+      flightMarkers.set(ac.hex,{mesh,type:isHeli?'heli':'plane', alt: ac.alt_geom ? ac.alt_geom * 0.3048 : 500});
+    }else{
+      flightMarkers.get(ac.hex).lat = ac.lat;
+      flightMarkers.get(ac.hex).lon = ac.lon;
+    }
   });
-  for(const[id,f]of flightMarkers){if(!seen.has(id)){f.marker.remove();flightMarkers.delete(id)}}
+  for(const[id,f]of flightMarkers){if(!seen.has(id)){transitGroup.remove(f.mesh);flightMarkers.delete(id)}}
 }
 
 function updateSim(){
@@ -885,9 +1745,19 @@ function updateSim(){
         else pos={lat:ev.pos.lat,lon:ev.pos.lon};break;
       }
     }
-    if(pos){obj.marker.setLngLat([pos.lon,pos.lat]);obj.marker.getElement().style.display=transitVisible?'block':'none'}
+    if(pos){
+      const lp = mercatorFromLngLat(pos.lon, pos.lat, route.alt || 0);
+      obj.mesh.position.set(lp.x, lp.y, lp.z);
+      obj.mesh.visible = transitVisible;
+    }
   }
-  flightMarkers.forEach(f=>{f.marker.getElement().style.display=transitVisible?'block':'none'});
+  flightMarkers.forEach(f=>{
+    if(f.lat && f.lon) {
+      const lp = mercatorFromLngLat(f.lon, f.lat, f.alt);
+      f.mesh.position.set(lp.x, lp.y, lp.z);
+    }
+    f.mesh.visible = transitVisible;
+  });
   document.getElementById('ct-plane').textContent=ct.plane;document.getElementById('ct-heli').textContent=ct.heli;
   document.getElementById('ct-ferry').textContent=ct.ferry;document.getElementById('ct-subway').textContent=ct.subway;document.getElementById('ct-bus').textContent=ct.bus;
 }
@@ -915,11 +1785,14 @@ function toggleShadows(el){
 function toggleLayer(el){
   el.classList.toggle('on');const l=el.dataset.layer;layerState[l]=!layerState[l];
   if(l==='buildings'&&map){const v=layerState[l]?'visible':'none';['Building 3D','Building'].forEach(i=>{if(map.getLayer(i))map.setLayoutProperty(i,'visibility',v)})}
-  if(l==='transit'){transitVisible=layerState[l];simMarkers.forEach(o=>o.marker.getElement().style.display=transitVisible?'block':'none');flightMarkers.forEach(f=>f.marker.getElement().style.display=transitVisible?'block':'none')}
-  if(l==='grid'&&map&&map.getLayer('ground-grid'))map.setLayoutProperty('ground-grid','visibility',layerState[l]?'visible':'none');
+  if(l==='transit'){transitVisible=layerState[l];}
+  if(l==='grid'&&glbCustomLayer&&glbCustomLayer.gridHelper){glbCustomLayer.gridHelper.visible=layerState[l];if(map)map.triggerRepaint();}
   if(l==='glb'&&map&&map.getLayer('glb-models'))map.setLayoutProperty('glb-models','visibility',layerState[l]?'visible':'none');
   if(l==='scanlines')document.getElementById('scanlines').style.display=layerState[l]?'block':'none';
-  if(l==='site-marker'){const m=document.getElementById('site-marker-el');if(m)m.style.display=layerState[l]?'block':'none'}
+  if(l==='site-marker'){
+    if(siteMarkerMesh) siteMarkerMesh.visible = layerState[l];
+    if(map) map.triggerRepaint();
+  }
 }
 
 function setView(type,el){autoOrbit=false;document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));if(el)el.classList.add('on');
@@ -965,7 +1838,157 @@ window.toggleShadows = toggleShadows;
 window.setView = setView;
 window.resetCamera = resetCamera;
 window.updateSun = updateSun;
-async function main(){await bootSeq();await initMap();setupGLB()}
+window.toggleSolarLayer = toggleSolarLayer;
+document.getElementById('btn-run-analysis').onclick = runAnalysis;
+
+// Local Time update
+setInterval(()=>{
+  const options = { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+  const formatter = new Intl.DateTimeFormat([], options);
+  const v = formatter.format(new Date());
+  document.getElementById('v-local-time').textContent = v;
+}, 1000);
+
+async function main(){
+  await bootSeq();
+  await initMap();
+  setupGLB();
+
+
+  // Setup lil-gui
+  document.documentElement.style.setProperty('--c-plane', PARAMS.transitGroupColors.plane);
+  document.documentElement.style.setProperty('--c-heli', PARAMS.transitGroupColors.heli);
+  document.documentElement.style.setProperty('--c-ferry', PARAMS.transitGroupColors.ferry);
+  document.documentElement.style.setProperty('--c-subway', PARAMS.transitGroupColors.subway);
+  document.documentElement.style.setProperty('--c-bus', PARAMS.transitGroupColors.bus);
+  const gui = new lil.GUI({ title: 'System Parameters' });
+  gui.domElement.style.position = 'absolute';
+  gui.domElement.style.top = '10px';
+  gui.domElement.style.right = '320px'; // To left of right HUD
+  gui.domElement.style.zIndex = '1000';
+
+  const fTag = gui.addFolder('Cultural Tags');
+  fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(updateCulturalTags);
+  fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(updateCulturalTags);
+  fTag.add(PARAMS, 'culturalTextSize', 6, 32).onChange(updateCulturalTags);
+
+  const fTransit = gui.addFolder('Transit Settings');
+
+
+  fTransit.add(PARAMS, 'transitIconScale', 0.1, 5).onChange((v) => {
+    // sim markers
+    for(const [id, obj] of simMarkers) {
+      if(obj.mesh) {
+        obj.mesh.scale.set(v, v, v);
+      }
+    }
+    // flight markers
+    flightMarkers.forEach(f => {
+      if(f.mesh) {
+        f.mesh.scale.set(v, v, v);
+      }
+    });
+  });
+  const fMat = gui.addFolder('Materials');
+  fMat.addColor(PARAMS, 'subwayMaterialColor').onChange(c => {
+    if (glbCustomLayer && glbCustomLayer.scene) {
+        const sub = glbCustomLayer.scene.getObjectByName('subway_system.glb');
+        if (sub) {
+            sub.traverse(child => {
+                if(child.isMesh && child.material) child.material.color.setHex(c);
+            });
+        }
+    }
+  });
+  fMat.add(PARAMS, 'subwayMaterialOpacity', 0, 1).onChange(o => {
+    if (glbCustomLayer && glbCustomLayer.scene) {
+        const sub = glbCustomLayer.scene.getObjectByName('subway_system.glb');
+        if (sub) {
+            sub.traverse(child => {
+                if(child.isMesh && child.material) child.material.opacity = o;
+            });
+        }
+    }
+  });
+  fMat.addColor(PARAMS, 'otherGlbMaterialColor').onChange(c => {
+    if (glbCustomLayer && glbCustomLayer.scene) {
+        glbCustomLayer.scene.children.forEach(obj => {
+            if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
+                obj.traverse(child => {
+                    if(child.isMesh && child.material) child.material.color.setHex(c);
+                });
+            }
+        });
+        if (activeProjectMesh) {
+             activeProjectOriginalMaterial.color.setHex(c);
+        }
+    }
+  });
+  fMat.add(PARAMS, 'otherGlbMaterialOpacity', 0, 1).onChange(o => {
+    if (glbCustomLayer && glbCustomLayer.scene) {
+        glbCustomLayer.scene.children.forEach(obj => {
+            if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
+                obj.traverse(child => {
+                    if(child.isMesh && child.material) child.material.opacity = o;
+                });
+            }
+        });
+        if (activeProjectMesh) {
+             activeProjectOriginalMaterial.opacity = o;
+        }
+    }
+  });
+
+  const fMap = gui.addFolder('Map Style');
+  fMap.addColor(PARAMS, 'waterColor').onChange(c => {
+    if(map.getLayer('water')) map.setPaintProperty('water', 'fill-color', c);
+  });
+  fMap.add(PARAMS, 'waterOpacity', 0, 1).onChange(o => {
+    if(map.getLayer('water')) map.setPaintProperty('water', 'fill-opacity', o);
+  });
+
+  const fGrid = gui.addFolder('Grid');
+  fGrid.add(PARAMS, 'gridCellSize', 100, 5000).onChange(v => updateGrid());
+  fGrid.add(PARAMS, 'gridLineAlpha', 0, 1).onChange(v => updateGrid());
+
+  const fTraf = gui.addFolder('Traffic Sim');
+  fTraf.addColor(PARAMS, 'carColor').onChange(c => {
+    if(trafficGroup) {
+        trafficGroup.children.forEach(mesh => {
+            if(mesh && mesh.material) {
+                mesh.material.color.setHex(c);
+            }
+        });
+    }
+  });
+
+
+  function updateGrid() {
+    if(!glbCustomLayer || !glbCustomLayer.scene) return;
+    const oldGrid = glbCustomLayer.scene.getObjectByName('groundGrid');
+    if(oldGrid) {
+      glbCustomLayer.scene.remove(oldGrid);
+      if (oldGrid.geometry) oldGrid.geometry.dispose();
+      if (oldGrid.material) {
+        if (Array.isArray(oldGrid.material)) {
+            oldGrid.material.forEach(m => m.dispose());
+        } else {
+            oldGrid.material.dispose();
+        }
+      }
+    }
+    glbCustomLayer.gridHelper = new THREE.GridHelper(PARAMS.gridCellSize, PARAMS.gridCount * 2, 0xffffff, 0xffffff);
+    glbCustomLayer.gridHelper.material.opacity = PARAMS.gridLineAlpha;
+    glbCustomLayer.gridHelper.material.transparent = true;
+    glbCustomLayer.gridHelper.position.y = 0.5;
+    glbCustomLayer.gridHelper.name = 'groundGrid';
+    glbCustomLayer.scene.add(glbCustomLayer.gridHelper);
+  }
+
+
+  initPreviewRenderer();
+  updatePreviewLoop();
+}
 main();
 </script>
 </body>
