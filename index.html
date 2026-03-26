@@ -1185,11 +1185,24 @@ function getTrafficLngLat(tx, ty) {
     const tx_diff = tx - 0;
     const ty_diff = ty - 640;
 
-    const lng = -74.0038508 + (tx_diff / 920) * 0.0106878 + (ty_diff / -640) * 0.0033853;
-    const lat = 40.7564801 + (tx_diff / 920) * -0.0040708 + (ty_diff / -640) * 0.0051189;
+    // Use exact visually aligned anchor variables:
+    const p0 = { lng: -74.004583, lat: 40.756453 };
+    const p1 = { lng: -73.993693, lat: 40.752252 };
+    const p2 = { lng: -74.001766, lat: 40.761636 };
+
+    // dx/dy mapped directly from the updated exact variables
+    const dx_x = p1.lng - p0.lng; // Longitude change along 34th St (X-axis in traffic grid)
+    const dy_x = p1.lat - p0.lat; // Latitude change along 34th St
+
+    const dx_y = p2.lng - p0.lng; // Longitude change along 12th Ave (Y-axis in traffic grid)
+    const dy_y = p2.lat - p0.lat; // Latitude change along 12th Ave
+
+    const lng = p0.lng + (tx_diff / 920) * dx_x + (ty_diff / -640) * dx_y;
+    const lat = p0.lat + (tx_diff / 920) * dy_x + (ty_diff / -640) * dy_y;
 
     return { lng, lat };
 }
+
 function tickCars(){
   shBuild();
   for(const c of cars){
@@ -1696,6 +1709,7 @@ function initTransit(){
   if(glbCustomLayer && glbCustomLayer.scene) {
     glbCustomLayer.scene.add(trafficGroup);
   }
+
 
   fetchFlights();setInterval(fetchFlights,PARAMS.flightApiInterval);
   setInterval(()=>{
