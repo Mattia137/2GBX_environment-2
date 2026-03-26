@@ -1168,25 +1168,25 @@ function getTrafficLngLat(tx, ty) {
     // We will use a more precise affine transform based on actual coordinates 
     // to match the map grid angle. Hudson yards streets are rotated ~29 degrees.
     // Let's define 3 anchor points for an affine transform:
-    // P0: 12th & 34th (x: 0, y: 640) => [ -74.005118, 40.755291 ]
-    // P1: 8th & 34th (x: 920, y: 640) => [ -73.993358, 40.752317 ]
-    // P2: 12th & 42nd (x: 0, y: 0) => [ -73.999601, 40.762221 ]
+    // P0: 12th & 34th (x: 0, y: 640) => [ -74.0038508, 40.7564801 ]
+    // P1: 8th & 34th (x: 920, y: 640) => [ -73.9931630, 40.7524093 ]
+    // P2: 12th & 42nd (x: 0, y: 0) => [ -74.0004655, 40.7615990 ]
     
     // Vector X (along 34th St from 12th to 8th):
-    // dx = P1.lng - P0.lng = 0.011760
-    // dy = P1.lat - P0.lat = -0.002974
+    // dx = P1.lng - P0.lng = 0.0106878
+    // dy = P1.lat - P0.lat = -0.0040708
     // Traffic dx = 920
     
     // Vector Y (along 12th Ave from 34th to 42nd):
-    // dx = P2.lng - P0.lng = 0.005517
-    // dy = P2.lat - P0.lat = 0.006930
+    // dx = P2.lng - P0.lng = 0.0033853
+    // dy = P2.lat - P0.lat = 0.0051189
     // Traffic dy = -640
 
     const tx_diff = tx - 0;
     const ty_diff = ty - 640;
 
-    const lng = -74.005118 + (tx_diff / 920) * 0.011760 + (ty_diff / -640) * 0.005517;
-    const lat = 40.755291 + (tx_diff / 920) * -0.002974 + (ty_diff / -640) * 0.006930;
+    const lng = -74.0038508 + (tx_diff / 920) * 0.0106878 + (ty_diff / -640) * 0.0033853;
+    const lat = 40.7564801 + (tx_diff / 920) * -0.0040708 + (ty_diff / -640) * 0.0051189;
 
     return { lng, lat };
 }
