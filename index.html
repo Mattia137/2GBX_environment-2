@@ -1168,25 +1168,27 @@ function getTrafficLngLat(tx, ty) {
     // We will use a more precise affine transform based on actual coordinates 
     // to match the map grid angle. Hudson yards streets are rotated ~29 degrees.
     // Let's define 3 anchor points for an affine transform:
-    // P0: 12th & 34th (x: 0, y: 640) => [ -74.0038508, 40.7564801 ]
-    // P1: 8th & 34th (x: 920, y: 640) => [ -73.9931630, 40.7524093 ]
-    // P2: 12th & 42nd (x: 0, y: 0) => [ -74.0004655, 40.7615990 ]
+    // P0: 12th & 34th (x: 0, y: 640)
+    // P1: 8th & 34th (x: 920, y: 640)
+    // P2: 12th & 42nd (x: 0, y: 0)
+
+    const P0_lng = -74.00285; const P0_lat = 40.75538;
+    const P1_lng = -73.99266; const P1_lat = 40.75133;
+    const P2_lng = -73.99974; const P2_lat = 40.76063;
     
     // Vector X (along 34th St from 12th to 8th):
-    // dx = P1.lng - P0.lng = 0.0106878
-    // dy = P1.lat - P0.lat = -0.0040708
-    // Traffic dx = 920
+    const dx_x = P1_lng - P0_lng;
+    const dy_x = P1_lat - P0_lat;
     
     // Vector Y (along 12th Ave from 34th to 42nd):
-    // dx = P2.lng - P0.lng = 0.0033853
-    // dy = P2.lat - P0.lat = 0.0051189
-    // Traffic dy = -640
+    const dx_y = P2_lng - P0_lng;
+    const dy_y = P2_lat - P0_lat;
 
     const tx_diff = tx - 0;
-    const ty_diff = ty - 640;
+    const ty_diff = ty - 640; // going from y=640 to y=0 is -640 diff
 
-    const lng = -74.0038508 + (tx_diff / 920) * 0.0106878 + (ty_diff / -640) * 0.0033853;
-    const lat = 40.7564801 + (tx_diff / 920) * -0.0040708 + (ty_diff / -640) * 0.0051189;
+    const lng = P0_lng + (tx_diff / 920) * dx_x + (ty_diff / -640) * dx_y;
+    const lat = P0_lat + (tx_diff / 920) * dy_x + (ty_diff / -640) * dy_y;
 
     return { lng, lat };
 }
@@ -1267,9 +1269,10 @@ function tickCars(){
         const lp = mercatorFromLngLat(gps.lng, gps.lat, 0);
         c.mesh.position.set(lp.x, lp.y, lp.z);
         
-        // Match rotation to the street grid angle + simulation angle
-        // HUD street angle is ~29 degrees (0.506 rad) counter-clockwise from East.
-        // Simulation Y is down, so we subtract it from map rotation
+        // Ensure rotation matches direction of travel.
+        // The simulation angle `c.ang` expects East to be 0 rad and goes counter-clockwise.
+        // The actual map rotation for Hudson Yards streets is roughly 29 degrees (0.506 radians).
+        // A vehicle's true heading must adjust for this offset as well as correct the axis mappings.
         c.mesh.rotation.y = -c.ang - 0.506;
     }
   }
