@@ -1092,14 +1092,17 @@ function setupGLB(){
 
 /* ═══ TRAFFIC SIMULATOR (INJECTED) ═══ */
 let trafficGroup = new THREE.Group();
+let trafficInstancedMesh = null;
+const _dummyObj = new THREE.Object3D();
+const _dummyColor = new THREE.Color();
 const CFG = {
-  NUM_CARS: 400, CAR_LEN: 4.5, CAR_WID: 1.8, CAR_MAX_SPEED: 0.1,
+  NUM_CARS: 12000, CAR_LEN: 4.5, CAR_WID: 1.8, CAR_MAX_SPEED: 0.1,
   CAR_ACCEL: 0.005, CAR_BRAKE: 0.01, CAR_HARD_BRAKE: 0.05,
   FOLLOW_DIST: 15, STOP_LINE_DIST: 5,
   ST_LANE: 2.0, AVE_LANE: 4.0,
   LIGHT_GREEN: 280, LIGHT_YELLOW: 50, LIGHT_ALL_RED: 25,
   STOP_WAIT: 65, PED_DETECT: 18, STUCK_LIMIT: 300,
-  FADE_RADIUS_KM: 1.5
+  FADE_RADIUS_KM: 0.5
 };
 const cars=[];let carId=0;
 
@@ -1456,8 +1459,22 @@ function tickCars(){
       return;
   }
 
+    if (glbCustomLayer && glbCustomLayer.scene && !trafficInstancedMesh) {
+        const geom = new THREE.BoxGeometry(1, 1, 1);
+        const mat = new THREE.MeshBasicMaterial({color: PARAMS.carColor});
+        trafficInstancedMesh = new THREE.InstancedMesh(geom, mat, CFG.NUM_CARS);
+        trafficInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        trafficGroup.add(trafficInstancedMesh);
+    }
+
+    if (trafficInstancedMesh) {
+        trafficInstancedMesh.material.color.set(PARAMS.carColor);
+    }
+
   shBuild();
-  for(const c of cars){
+    let instanceIndex = 0;
+    for(let i = 0; i < cars.length; i++){
+        const c = cars[i];
       const eLen=Math.sqrt((nodes[c.to].x-nodes[c.from].x)**2+(nodes[c.to].y-nodes[c.from].y)**2)||1;
       let tgt=c.maxSpd;c.stopped=false;
       const dEnd=(1-c.t)*eLen;
@@ -1549,22 +1566,24 @@ function tickCars(){
           continue;
       }
 
-      if(!c.mesh && glbCustomLayer && glbCustomLayer.scene){
-          c.mesh = new THREE.Mesh(
-              new THREE.BoxGeometry(c.wid, c.wid, c.len),
-              new THREE.MeshBasicMaterial({color: PARAMS.carColor, transparent: true})
-          );
-          trafficGroup.add(c.mesh);
-      }
-      if(c.mesh) {
-          // ThreeJS Mercator offset based on exact lat/lng
+      if (trafficInstancedMesh && opacity > 0.01) {
           const lp = mercatorFromLngLat(c.lng, c.lat, 0);
-          c.mesh.position.set(lp.x, lp.y, lp.z);
-          // Angle in radians (Note: the ThreeJS space uses Z as forward for mesh? Box geometry uses Z for length)
-          c.mesh.rotation.y = -c.ang;
-          c.mesh.material.opacity = opacity;
-          c.mesh.visible = opacity > 0.01;
+          _dummyObj.position.set(lp.x, lp.y, lp.z);
+          _dummyObj.rotation.set(0, -c.ang, 0);
+          // Apply individual dimensions if car len/wid vary (which they do by random in makeCar)
+          // Actually, we can just bake the car dimensions into the scale since the base geometry is 1x1x1
+          // We use opacity to scale it down slightly as it reaches the edge
+          _dummyObj.scale.set(c.wid * opacity, c.wid * opacity, c.len * opacity);
+          _dummyObj.updateMatrix();
+
+          trafficInstancedMesh.setMatrixAt(instanceIndex, _dummyObj.matrix);
+          instanceIndex++;
       }
+  }
+
+  if (trafficInstancedMesh) {
+      trafficInstancedMesh.count = instanceIndex;
+      trafficInstancedMesh.instanceMatrix.needsUpdate = true;
   }
 
   tFrame++;
