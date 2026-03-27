@@ -616,6 +616,13 @@ async function initMap(){
         updateBuildingFilter();
       }
 
+      // Attempt building traffic graph when style/source data loaded
+      map.on('idle', () => {
+         if (!graphBuilt) {
+            buildGraphFromMapTiler();
+         }
+      });
+
       // Fog
       if(map.setFog) map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
       addSiteMarker();updateSun();
@@ -1084,200 +1091,490 @@ function setupGLB(){
 /* ═══ TRAFFIC SIMULATOR (INJECTED) ═══ */
 let trafficGroup = new THREE.Group();
 const CFG = {
-  NUM_CARS: 80, CAR_LEN: 4.5, CAR_WID: 1.8, CAR_MAX_SPEED: 1.4,
-  CAR_ACCEL: 0.03, CAR_BRAKE: 0.07, CAR_HARD_BRAKE: 0.15,
-  FOLLOW_DIST: 12, STOP_LINE_DIST: 14,
-  AVE_LANE_RIGHT: 2.5, AVE_LANE_LEFT:  6.0, ST_LANE: 2.5,
+  NUM_CARS: 400, CAR_LEN: 4.5, CAR_WID: 1.8, CAR_MAX_SPEED: 0.1,
+  CAR_ACCEL: 0.005, CAR_BRAKE: 0.01, CAR_HARD_BRAKE: 0.05,
+  FOLLOW_DIST: 15, STOP_LINE_DIST: 5,
+  ST_LANE: 2.0, AVE_LANE: 4.0,
   LIGHT_GREEN: 280, LIGHT_YELLOW: 50, LIGHT_ALL_RED: 25,
-  STOP_WAIT: 65, PED_DETECT: 18, STUCK_LIMIT: 420,
+  STOP_WAIT: 65, PED_DETECT: 18, STUCK_LIMIT: 300,
+  FADE_RADIUS_KM: 1.5
 };
 const cars=[];let carId=0;
 
-function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
-const AX={'12th':0,'11th':210,'HudBl':330,'10th':440,'Dyer':540,'9th':680,'8th':920};
-const SY={};const streetNames=[];for(let s=42;s>=25;s--){const nm=ordinal(s);SY[nm]=(42-s)*80;streetNames.push(nm);}
-const nodes=[],nodeMap={},adjList=[],edgeSet=[];let _nid=0;
-function addNode(ave,st){const key=ave+','+st;if(nodeMap[key]!==undefined)return nodeMap[key];const id=_nid++;nodeMap[key]=id;nodes.push({id,x:AX[ave],y:SY[st],ave,st,key,type:'none',lightState:'green-h',lightTimer:50+Math.floor(Math.random()*CFG.LIGHT_GREEN),occupants:new Set(),occupantDir:null,stopQ:[],stopW:new Map(),isBoundary:false,});adjList.push([]);return id;}
-function addEdge(id1,id2){if(adjList[id1].some(e=>e.to===id2))return;const a=nodes[id1],b=nodes[id2];const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy);const isAve=a.ave===b.ave;adjList[id1].push({to:id2,len,isAve});adjList[id2].push({to:id1,len,isAve});edgeSet.push({a:id1,b:id2,isAve,oneWay:false});}
-function addOneWay(id1,id2){if(adjList[id1].some(e=>e.to===id2))return;const a=nodes[id1],b=nodes[id2];const dx=b.x-a.x,dy=b.y-a.y,len=Math.sqrt(dx*dx+dy*dy);const isAve=a.ave===b.ave;adjList[id1].push({to:id2,len,isAve});edgeSet.push({a:id1,b:id2,isAve,oneWay:true});}
-const ONE_WAY_SOUTH=new Set(['11th','9th']);const ONE_WAY_NORTH=new Set(['10th','8th']);
-const hwy12Data=[['42nd',5,SY['42nd']],['41st',3,SY['41st']],['39th',-2,SY['39th']],['34th',-5,SY['34th']],['30th',-5,SY['30th']],['29th',8,SY['29th']],['28th',25,SY['28th']],['27th',45,SY['27th']],['26th',68,SY['26th']],['25th',92,SY['25th']],];
-for(const[st,cx,cy]of hwy12Data){const key='12th,'+st;if(nodeMap[key]!==undefined)continue;const id=_nid++;nodeMap[key]=id;nodes.push({id,x:cx,y:cy,ave:'12th',st,key,type:'none',lightState:'green-h',lightTimer:50+Math.floor(Math.random()*CFG.LIGHT_GREEN),occupants:new Set(),occupantDir:null,stopQ:[],stopW:new Map(),isBoundary:false,});adjList.push([]);}
-const hwy12Sts=hwy12Data.map(d=>d[0]);for(let i=0;i<hwy12Sts.length-1;i++){addEdge(nodeMap['12th,'+hwy12Sts[i]],nodeMap['12th,'+hwy12Sts[i+1]]);}
-function buildAve(ave){for(const st of streetNames)addNode(ave,st);if(ONE_WAY_SOUTH.has(ave)){for(let i=0;i<streetNames.length-1;i++)addOneWay(nodeMap[ave+','+streetNames[i]],nodeMap[ave+','+streetNames[i+1]]);}else if(ONE_WAY_NORTH.has(ave)){for(let i=streetNames.length-1;i>0;i--)addOneWay(nodeMap[ave+','+streetNames[i]],nodeMap[ave+','+streetNames[i-1]]);}}
-buildAve('11th');const hbSts=['36th','35th','34th','33rd'];for(const st of hbSts)addNode('HudBl',st);for(let i=0;i<hbSts.length-1;i++)addEdge(nodeMap['HudBl,'+hbSts[i]],nodeMap['HudBl,'+hbSts[i+1]]);buildAve('10th');const dySts=['40th','39th','38th','37th','36th','35th','34th'];for(const st of dySts)addNode('Dyer',st);for(let i=0;i<dySts.length-1;i++){addOneWay(nodeMap['Dyer,'+dySts[i]],nodeMap['Dyer,'+dySts[i+1]]);}
-nodes[nodeMap['Dyer,40th']].isTunnelEntry=true;buildAve('9th');buildAve('8th');
-const TWO_WAY_STS=new Set(['42nd','34th','25th']);const stDirection={};for(const st of streetNames){if(TWO_WAY_STS.has(st))continue;const sn=parseInt(st);if(sn>=35&&sn<=41){stDirection[st]=(sn%2===1)?'w':'e';}else if(sn<=33){stDirection[st]=(sn%2===1)?'w':'e';}}
-function tryConnectDir(a1,a2,st){const k1=a1+','+st,k2=a2+','+st;if(nodeMap[k1]===undefined||nodeMap[k2]===undefined)return;const dir=stDirection[st];if(!dir){addEdge(nodeMap[k1],nodeMap[k2]);}else if(dir==='e'){addOneWay(nodeMap[k1],nodeMap[k2]);}else{addOneWay(nodeMap[k2],nodeMap[k1]);}}
-for(const st of streetNames){const sn=parseInt(st);if(hwy12Sts.includes(st))tryConnectDir('12th','11th',st);if(hbSts.includes(st))tryConnectDir('11th','HudBl',st);if(sn>=34||sn<=30)tryConnectDir('11th','10th',st);if(hbSts.includes(st))tryConnectDir('HudBl','10th',st);if(dySts.includes(st))tryConnectDir('10th','Dyer',st);if(sn<=38||sn>=42)tryConnectDir('10th','9th',st);if(dySts.includes(st)&&sn<=38)tryConnectDir('Dyer','9th',st);tryConnectDir('9th','8th',st);}
-const boundaryIds=[];for(const n of nodes){if(n.st==='42nd'||n.st==='25th'||n.ave==='8th'){if(adjList[n.id].length>0){n.isBoundary=true;boundaryIds.push(n.id);}}}
-const tunnelNode=nodeMap['Dyer,40th'];if(tunnelNode!==undefined){nodes[tunnelNode].isBoundary=true;boundaryIds.push(tunnelNode);}
-const majorAves=new Set(['11th','10th','9th','8th']);for(const n of nodes){const deg=adjList[n.id].length;if(deg<2)continue;if(n.ave==='HudBl'||n.ave==='Dyer'){n.type='stop';}else if(majorAves.has(n.ave)){n.type='light';}else if(n.ave==='12th'){const hasCrossStreet=adjList[n.id].some(e=>nodes[e.to].ave!=='12th');if(hasCrossStreet)n.type='light';}}
-const connIds=[];for(let i=0;i<nodes.length;i++)if(adjList[i].length>0)connIds.push(i);
-function isAveEdge(fromId,toId){return nodes[fromId].ave===nodes[toId].ave;}function isOneWayAve(fromId,toId){const ave=nodes[fromId].ave;return ave===nodes[toId].ave&&(ONE_WAY_SOUTH.has(ave)||ONE_WAY_NORTH.has(ave));}const OW_LANE_OFFSETS=[6.5,2.5,-1.5,-5.5];const OW_ST_OFFSETS=[2.5,-2.0];function isOneWaySt(fromId,toId){const a=nodes[fromId],b=nodes[toId];if(a.ave===b.ave)return false;const st=a.st;return!!stDirection[st];}
-function lanePos(fromId,toId,t,lane){const a=nodes[fromId],b=nodes[toId];const dx=b.x-a.x,dy=b.y-a.y;const len=Math.sqrt(dx*dx+dy*dy)||1;const nx=-dy/len,ny=dx/len;let offset;if(isOneWayAve(fromId,toId)){offset=OW_LANE_OFFSETS[Math.min(lane,3)];}else if(isOneWaySt(fromId,toId)){offset=OW_ST_OFFSETS[Math.min(lane,1)];}else if(isAveEdge(fromId,toId)){offset=lane===1?CFG.AVE_LANE_LEFT:CFG.AVE_LANE_RIGHT;}else{offset=CFG.ST_LANE;}return{x:a.x+dx*t+nx*offset,y:a.y+dy*t+ny*offset,angle:Math.atan2(dy,dx),};}
-function edgeDir(f,t){const a=nodes[f],b=nodes[t];return Math.abs(b.x-a.x)>Math.abs(b.y-a.y)?'h':'v';}
-function turnType(n0,n1,n2){const dx1=nodes[n1].x-nodes[n0].x,dy1=nodes[n1].y-nodes[n0].y;const dx2=nodes[n2].x-nodes[n1].x,dy2=nodes[n2].y-nodes[n1].y;const cross=dx1*dy2-dy1*dx2;if(Math.abs(cross)<1)return'straight';return cross>0?'right':'left';}
-function chooseLane(car){if(isOneWayAve(car.from,car.to)){if(car.pi+1>=car.path.length)return Math.floor(Math.random()*4);const next=car.path[car.pi+1];const turn=turnType(car.from,car.to,next);if(turn==='right')return 0;if(turn==='left')return 3;return 1+Math.floor(Math.random()*2);}if(isOneWaySt(car.from,car.to)){if(car.pi+1>=car.path.length)return Math.floor(Math.random()*2);const next=car.path[car.pi+1];const turn=turnType(car.from,car.to,next);if(turn==='right')return 0;if(turn==='left')return 1;return Math.floor(Math.random()*2);}if(!isAveEdge(car.from,car.to))return 0;if(car.pi+1>=car.path.length)return 0;const next=car.path[car.pi+1];const turn=turnType(car.from,car.to,next);if(turn==='left')return 1;if(turn==='right')return 0;return car.lane;}
-function astar(s,e){if(s===e)return null;const gS=new Map([[s,0]]),fS=new Map([[s,hr(s,e)]]),from=new Map();const open=new Set([s]),closed=new Set();while(open.size){let cur=-1,best=Infinity;for(const id of open){const f=fS.get(id)??Infinity;if(f<best){best=f;cur=id;}}if(cur===e){const p=[cur];while(from.has(cur)){cur=from.get(cur);p.unshift(cur);}return p;}open.delete(cur);closed.add(cur);if(!adjList[cur])continue;const cg=gS.get(cur)??Infinity;for(const{to,len}of adjList[cur]){if(closed.has(to))continue;const tg=cg+len;if(tg<(gS.get(to)??Infinity)){from.set(to,cur);gS.set(to,tg);fS.set(to,tg+hr(to,e));open.add(to);}}}return null;}
+// Dynamic Graph Structures
+let nodes=[],nodeMap={},adjList=[],edgeSet=[];
+let boundaryIds=[],connIds=[];
+let _nid=0;
+let graphBuilt = false;
+
+function addNode(lng, lat){
+  // quantize roughly to 4 decimals for intersection matching (~10 meters)
+  const qx = Math.round(lng * 10000);
+  const qy = Math.round(lat * 10000);
+  const key = qx + ',' + qy;
+
+  if(nodeMap[key] !== undefined) return nodeMap[key];
+
+  const id = _nid++;
+  nodeMap[key] = id;
+  // Convert lat/lng to mercator so distance calculations are metric
+  const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], 0);
+  const worldSize = 512; // base size
+
+  nodes.push({
+    id, lng, lat,
+    x: mc.x * worldSize * 1000,
+    y: mc.y * worldSize * 1000,
+    key, type:'none',
+    lightState: Math.random() > 0.5 ? 'green-h' : 'green-v',
+    lightTimer: 50+Math.floor(Math.random()*CFG.LIGHT_GREEN),
+    occupants:new Set(), occupantDir:null, stopQ:[], stopW:new Map(),
+    isBoundary:false
+  });
+  adjList.push([]);
+  return id;
+}
+
+function addEdge(id1, id2, oneway, laneCount) {
+  if (id1 === id2) return;
+  const a=nodes[id1], b=nodes[id2];
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  if (len < 0.1) return; // ignore zero-length edges
+
+  // avoid duplicates
+  if(!adjList[id1].some(e=>e.to===id2)) {
+      adjList[id1].push({to:id2, len, laneCount});
+      edgeSet.push({a:id1, b:id2, oneWay:oneway});
+  }
+
+  if(!oneway) {
+     if(!adjList[id2].some(e=>e.to===id1)) {
+         adjList[id2].push({to:id1, len, laneCount});
+     }
+  }
+}
+
+// Haversine formula for distance in km
+function distanceKm(lat1, lon1, lat2, lon2) {
+  const p = 0.017453292519943295;
+  const c = Math.cos;
+  const a = 0.5 - c((lat2 - lat1) * p)/2 + c(lat1 * p) * c(lat2 * p) * (1 - c((lon2 - lon1) * p))/2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
+
+function buildGraphFromMapTiler() {
+  if (!map || !map.getStyle()) return;
+  const sources = map.getStyle().sources;
+  let sourceName = Object.keys(sources).find(k => sources[k].type === 'vector') || 'openmaptiles';
+  if(!map.getSource(sourceName)) return;
+
+  const features = map.querySourceFeatures(sourceName, {
+      sourceLayer: 'transportation',
+      filter: ['in', 'class', 'motorway', 'primary', 'secondary', 'tertiary', 'trunk', 'residential', 'minor', 'street']
+  });
+
+  if(features.length === 0) return;
+
+  const uniqueFeatures = new Map();
+  features.forEach(f => {
+      // Filter out paths/rails/bridges that aren't for cars
+      if(f.properties.class === 'path' || f.properties.class === 'rail' || f.properties.class === 'transit') return;
+      if (f.id && !uniqueFeatures.has(f.id)) uniqueFeatures.set(f.id, f);
+      // For un-id'd features, use stringified coordinates as key
+      if (!f.id) uniqueFeatures.set(JSON.stringify(f.geometry.coordinates), f);
+  });
+
+  nodes=[]; nodeMap={}; adjList=[]; edgeSet=[]; _nid=0;
+  boundaryIds=[]; connIds=[];
+
+  uniqueFeatures.forEach(f => {
+      let isOneWay = f.properties.oneway === 1 || f.properties.oneway === 'yes' || f.properties.oneway === true;
+      let lanes = f.properties.class === 'motorway' || f.properties.class === 'trunk' ? 3 : (f.properties.class === 'primary' ? 2 : 1);
+
+      const processLineString = (coords) => {
+          for (let i = 0; i < coords.length - 1; i++) {
+              const n1 = addNode(coords[i][0], coords[i][1]);
+              const n2 = addNode(coords[i+1][0], coords[i+1][1]);
+              addEdge(n1, n2, isOneWay, lanes);
+          }
+      };
+
+      if (f.geometry.type === 'LineString') {
+          processLineString(f.geometry.coordinates);
+      } else if (f.geometry.type === 'MultiLineString') {
+          f.geometry.coordinates.forEach(ls => processLineString(ls));
+      }
+  });
+
+  // Assign node types (intersections)
+  for (let i=0; i<nodes.length; i++) {
+      const n = nodes[i];
+      const outDeg = adjList[i].length;
+      let inDeg = 0;
+      for(let j=0; j<adjList.length; j++) {
+         if(adjList[j].some(e=>e.to===i)) inDeg++;
+      }
+      const totalDeg = outDeg + inDeg;
+
+      const dist = distanceKm(SITE.lat, SITE.lng, n.lat, n.lng);
+      if (dist > CFG.FADE_RADIUS_KM || outDeg === 0 || inDeg === 0) {
+          n.isBoundary = true;
+          boundaryIds.push(i);
+      }
+
+      if (totalDeg > 3) {
+          n.type = 'light';
+      } else if (totalDeg > 2) {
+          n.type = 'stop';
+      }
+
+      if (outDeg > 0) connIds.push(i);
+  }
+
+  // Generate initial cars
+  for(let i=0; i<CFG.NUM_CARS; i++){
+      const c = makeCar(i < CFG.NUM_CARS * 0.3);
+      if(c) cars.push(c);
+  }
+
+  graphBuilt = true;
+  console.log("Traffic graph built:", nodes.length, "nodes,", edgeSet.length, "edges.");
+}
+
+function lanePos(fromId, toId, t, laneIdx){
+  const a=nodes[fromId], b=nodes[toId];
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const len=Math.sqrt(dx*dx+dy*dy)||1;
+  const nx=-dy/len, ny=dx/len; // normal vector for offset
+
+  // simple offset logic based on laneIdx
+  const edgeInfo = adjList[fromId].find(e=>e.to===toId);
+  const lanes = edgeInfo ? edgeInfo.laneCount : 1;
+  const isOneWay = !adjList[toId].some(e=>e.to===fromId);
+
+  let offset = 0;
+  const laneW = CFG.ST_LANE;
+  if(isOneWay) {
+      offset = (laneIdx - (lanes-1)/2) * laneW;
+  } else {
+      offset = (laneIdx + 0.5) * laneW;
+  }
+
+  return {
+      x: a.x + dx*t + nx*offset,
+      y: a.y + dy*t + ny*offset,
+      angle: Math.atan2(dy, dx),
+      lng: a.lng + (b.lng - a.lng)*t, // interpolate approx lat/lng
+      lat: a.lat + (b.lat - a.lat)*t
+  };
+}
+
+function edgeDir(f,t){
+  const a=nodes[f], b=nodes[t];
+  return Math.abs(b.x-a.x)>Math.abs(b.y-a.y)?'h':'v';
+}
+
+function chooseLane(car){
+  const edgeInfo = adjList[car.from].find(e=>e.to===car.to);
+  const lanes = edgeInfo ? edgeInfo.laneCount : 1;
+  return Math.floor(Math.random() * lanes);
+}
+
 function hr(a,b){return Math.abs(nodes[a].x-nodes[b].x)+Math.abs(nodes[a].y-nodes[b].y);}
-function tickLights(){for(const n of nodes){if(n.type!=='light')continue;if(--n.lightTimer<=0)switch(n.lightState){case'green-h':n.lightState='yellow-h';n.lightTimer=CFG.LIGHT_YELLOW;break;case'yellow-h':n.lightState='all-red-hv';n.lightTimer=CFG.LIGHT_ALL_RED;break;case'all-red-hv':n.lightState='green-v';n.lightTimer=CFG.LIGHT_GREEN;break;case'green-v':n.lightState='yellow-v';n.lightTimer=CFG.LIGHT_YELLOW;break;case'yellow-v':n.lightState='all-red-vh';n.lightTimer=CFG.LIGHT_ALL_RED;break;case'all-red-vh':n.lightState='green-h';n.lightTimer=CFG.LIGHT_GREEN;break;}}}
-function greenFor(n,d){return(d==='h'&&n.lightState==='green-h')||(d==='v'&&n.lightState==='green-v');}function yellowFor(n,d){return(d==='h'&&n.lightState==='yellow-h')||(d==='v'&&n.lightState==='yellow-v');}
-function canEnter(car,nid){const n=nodes[nid];if(n.type==='none')return true;const d=edgeDir(car.from,car.to);if(n.type==='light'){if(!greenFor(n,d)&&!yellowFor(n,d))return false;if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;return true;}if(n.type==='stop'){if(!n.stopQ.includes(car.id)){n.stopQ.push(car.id);n.stopW.set(car.id,0);}const w=n.stopW.get(car.id)??0;n.stopW.set(car.id,w+1);if(n.stopQ[0]!==car.id)return false;if(w<CFG.STOP_WAIT)return false;if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;return true;}return true;}
-function markEnter(c,nid){const n=nodes[nid];n.occupants.add(c.id);n.occupantDir=edgeDir(c.from,c.to);const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);}function markLeave(c,nid){const n=nodes[nid];n.occupants.delete(c.id);if(!n.occupants.size)n.occupantDir=null;}function cleanupCar(c){if(c.inInt!==null){markLeave(c,c.inInt);c.inInt=null;}if(c.waitAt!==null){const n=nodes[c.waitAt];const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);c.waitAt=null;}}
-const SH=20;let shMap={};function shBuild(){shMap={};for(const c of cars){const k=(Math.floor(c.x/SH))+','+(Math.floor(c.y/SH));(shMap[k]||(shMap[k]=[])).push(c);}}function shQ(x,y,r){const out=[],cr=Math.ceil(r/SH),cx=Math.floor(x/SH),cy=Math.floor(y/SH);for(let dx=-cr;dx<=cr;dx++)for(let dy=-cr;dy<=cr;dy++){const a=shMap[(cx+dx)+','+(cy+dy)];if(a)for(let i=0;i<a.length;i++)out.push(a[i]);}return out;}
-function rndBoundary(){const weighted=[];for(const id of boundaryIds){const n=nodes[id];if(n.st==='42nd'||n.st==='25th')weighted.push(id,id,id,id,id);else weighted.push(id);}return weighted[Math.floor(Math.random()*weighted.length)];}
+
+function astar(s,e){
+  if(s===e)return null;
+  const gS=new Map([[s,0]]), fS=new Map([[s,hr(s,e)]]), from=new Map();
+  const open=new Set([s]), closed=new Set();
+
+  // Safety limit for astar iteration to prevent hanging on massive graphs
+  let iters = 0;
+
+  while(open.size && iters < 1000){
+      iters++;
+      let cur=-1,best=Infinity;
+      for(const id of open){
+          const f=fS.get(id)??Infinity;
+          if(f<best){best=f;cur=id;}
+      }
+      if(cur===e){
+          const p=[cur];
+          while(from.has(cur)){cur=from.get(cur);p.unshift(cur);}
+          return p;
+      }
+      open.delete(cur);closed.add(cur);
+      if(!adjList[cur])continue;
+      const cg=gS.get(cur)??Infinity;
+      for(const{to,len}of adjList[cur]){
+          if(closed.has(to))continue;
+          const tg=cg+len;
+          if(tg<(gS.get(to)??Infinity)){
+              from.set(to,cur);gS.set(to,tg);fS.set(to,tg+hr(to,e));open.add(to);
+          }
+      }
+  }
+  return null;
+}
+
+function tickLights(){
+  for(const n of nodes){
+      if(n.type!=='light')continue;
+      if(--n.lightTimer<=0){
+          switch(n.lightState){
+              case'green-h':n.lightState='yellow-h';n.lightTimer=CFG.LIGHT_YELLOW;break;
+              case'yellow-h':n.lightState='all-red-hv';n.lightTimer=CFG.LIGHT_ALL_RED;break;
+              case'all-red-hv':n.lightState='green-v';n.lightTimer=CFG.LIGHT_GREEN;break;
+              case'green-v':n.lightState='yellow-v';n.lightTimer=CFG.LIGHT_YELLOW;break;
+              case'yellow-v':n.lightState='all-red-vh';n.lightTimer=CFG.LIGHT_ALL_RED;break;
+              case'all-red-vh':n.lightState='green-h';n.lightTimer=CFG.LIGHT_GREEN;break;
+          }
+      }
+  }
+}
+
+function greenFor(n,d){return(d==='h'&&n.lightState==='green-h')||(d==='v'&&n.lightState==='green-v');}
+function yellowFor(n,d){return(d==='h'&&n.lightState==='yellow-h')||(d==='v'&&n.lightState==='yellow-v');}
+
+function canEnter(car,nid){
+  const n=nodes[nid];if(n.type==='none')return true;
+  const d=edgeDir(car.from,car.to);
+  if(n.type==='light'){
+      if(!greenFor(n,d)&&!yellowFor(n,d))return false;
+      if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;
+      return true;
+  }
+  if(n.type==='stop'){
+      if(!n.stopQ.includes(car.id)){n.stopQ.push(car.id);n.stopW.set(car.id,0);}
+      const w=n.stopW.get(car.id)??0;n.stopW.set(car.id,w+1);
+      if(n.stopQ[0]!==car.id)return false;
+      if(w<CFG.STOP_WAIT)return false;
+      if(n.occupants.size>0&&n.occupantDir&&n.occupantDir!==d)return false;
+      return true;
+  }
+  return true;
+}
+
+function markEnter(c,nid){const n=nodes[nid];n.occupants.add(c.id);n.occupantDir=edgeDir(c.from,c.to);const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);}
+function markLeave(c,nid){const n=nodes[nid];n.occupants.delete(c.id);if(!n.occupants.size)n.occupantDir=null;}
+function cleanupCar(c){if(c.inInt!==null){markLeave(c,c.inInt);c.inInt=null;}if(c.waitAt!==null){const n=nodes[c.waitAt];const qi=n.stopQ.indexOf(c.id);if(qi!==-1)n.stopQ.splice(qi,1);n.stopW.delete(c.id);c.waitAt=null;}}
+
+const SH=50;let shMap={};
+function shBuild(){
+  shMap={};
+  for(const c of cars){
+      const k=(Math.floor(c.x/SH))+','+(Math.floor(c.y/SH));
+      (shMap[k]||(shMap[k]=[])).push(c);
+  }
+}
+function shQ(x,y,r){
+  const out=[],cr=Math.ceil(r/SH),cx=Math.floor(x/SH),cy=Math.floor(y/SH);
+  for(let dx=-cr;dx<=cr;dx++){
+      for(let dy=-cr;dy<=cr;dy++){
+          const a=shMap[(cx+dx)+','+(cy+dy)];
+          if(a)for(let i=0;i<a.length;i++)out.push(a[i]);
+      }
+  }
+  return out;
+}
+
+function rndBoundary(){
+  if(boundaryIds.length===0) return rndNode();
+  return boundaryIds[Math.floor(Math.random()*boundaryIds.length)];
+}
 function rndNode(){return connIds[Math.floor(Math.random()*connIds.length)];}
-function makeCar(fromBoundary){for(let a=0;a<40;a++){const s=fromBoundary?rndBoundary():rndNode();if(adjList[s].length===0)continue;let g;for(let t=0;t<30;t++){g=rndBoundary();if(g!==s)break;}if(g===s)continue;const path=astar(s,g);if(!path||path.length<2)continue;const c={id:carId++,from:path[0],to:path[1],t:Math.random()*0.15,speed:fromBoundary?CFG.CAR_MAX_SPEED*0.4:0,maxSpd:CFG.CAR_MAX_SPEED*(0.6+Math.random()*0.4),path,pi:1,goal:g,x:0,y:0,ang:0,lane:0,inInt:null,waitAt:null,stuck:0,stopped:false,len:CFG.CAR_LEN+Math.random()*1.0,wid:CFG.CAR_WID,};c.lane=chooseLane(c);syncPos(c);return c;}return null;}
-function syncPos(c){const p=lanePos(c.from,c.to,c.t,c.lane);c.x=p.x;c.y=p.y;c.ang=p.angle;}
-function newGoal(c){for(let t=0;t<30;t++){const g=rndBoundary();if(g===c.to)continue;const p=astar(c.to,g);if(p&&p.length>=2){c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.lane=chooseLane(c);return;}}}
-function forceRepath(c){if(c.isHwy){respawnHwy(c);return;}if(c.isTunnel){respawnTunnel(c);return;}cleanupCar(c);for(let t=0;t<20;t++){const g=rndBoundary();if(g===c.from)continue;const p=astar(c.from,g);if(p&&p.length>=2){c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.speed=0;c.stuck=0;c.lane=chooseLane(c);return;}}}
-for(let i=0;i<CFG.NUM_CARS;i++){const c=makeCar(i<CFG.NUM_CARS*0.3);if(c)cars.push(c);}
-const hwyTop=nodeMap['12th,42nd'],hwyBot=nodeMap['12th,25th'];const HWY_COUNT=18;
-function makeHwyCar(){const goingSouth=Math.random()<0.5;const s=goingSouth?hwyTop:hwyBot;const g=goingSouth?hwyBot:hwyTop;const path=astar(s,g);if(!path||path.length<2)return null;const c={id:carId++,from:path[0],to:path[1],t:Math.random()*0.5,speed:CFG.CAR_MAX_SPEED*0.8,maxSpd:CFG.CAR_MAX_SPEED*(0.9+Math.random()*0.3),path,pi:1,goal:g,x:0,y:0,ang:0,lane:Math.random()<0.5?0:1,inInt:null,waitAt:null,stuck:0,stopped:false,len:CFG.CAR_LEN+Math.random()*1.5,wid:CFG.CAR_WID,isHwy:true,};syncPos(c);return c;}
-function respawnHwy(c){cleanupCar(c);const nc=makeHwyCar();if(nc)Object.assign(c,nc);}
-for(let i=0;i<HWY_COUNT;i++){const c=makeHwyCar();if(c)cars.push(c);}
-const TUNNEL_COUNT=10;const tunnelStart=nodeMap['Dyer,40th'];
-function makeTunnelCar(){const s=tunnelStart;if(!s&&s!==0)return null;for(let a=0;a<20;a++){const g=rndBoundary();if(g===s)continue;const path=astar(s,g);if(!path||path.length<2)continue;const c={id:carId++,from:path[0],to:path[1],t:Math.random()*0.3,speed:CFG.CAR_MAX_SPEED*0.6,maxSpd:CFG.CAR_MAX_SPEED*(0.7+Math.random()*0.3),path,pi:1,goal:g,x:0,y:0,ang:0,lane:Math.floor(Math.random()*2),inInt:null,waitAt:null,stuck:0,stopped:false,len:CFG.CAR_LEN+Math.random()*1.0,wid:CFG.CAR_WID,isTunnel:true,};syncPos(c);return c;}return null;}
-function respawnTunnel(c){cleanupCar(c);const nc=makeTunnelCar();if(nc)Object.assign(c,nc);}
-for(let i=0;i<TUNNEL_COUNT;i++){const c=makeTunnelCar();if(c)cars.push(c);}
+
+function makeCar(fromBoundary){
+  for(let a=0;a<40;a++){
+      const s=fromBoundary?rndBoundary():rndNode();
+      if(s===undefined || adjList[s].length===0)continue;
+      let g;
+      for(let t=0;t<30;t++){g=rndBoundary();if(g!==s)break;}
+      if(g===s)continue;
+      const path=astar(s,g);
+      if(!path||path.length<2)continue;
+      const c={
+          id:carId++,from:path[0],to:path[1],t:Math.random()*0.15,
+          speed:fromBoundary?CFG.CAR_MAX_SPEED*0.4:0,
+          maxSpd:CFG.CAR_MAX_SPEED*(0.6+Math.random()*0.4),
+          path,pi:1,goal:g,x:0,y:0,ang:0,lng:0,lat:0,lane:0,
+          inInt:null,waitAt:null,stuck:0,stopped:false,
+          len:CFG.CAR_LEN+Math.random()*1.0,wid:CFG.CAR_WID,
+      };
+      c.lane=chooseLane(c);
+      syncPos(c);
+      return c;
+  }
+  return null;
+}
+
+function syncPos(c){
+  const p=lanePos(c.from,c.to,c.t,c.lane);
+  c.x=p.x; c.y=p.y; c.ang=p.angle; c.lng=p.lng; c.lat=p.lat;
+}
+
+function newGoal(c){
+  for(let t=0;t<30;t++){
+      const g=rndBoundary();
+      if(g===c.to)continue;
+      const p=astar(c.to,g);
+      if(p&&p.length>=2){
+          c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.lane=chooseLane(c);
+          return;
+      }
+  }
+  // If no path found, just pick a random neighbor and keep driving
+  if(adjList[c.to] && adjList[c.to].length > 0) {
+      c.from = c.to;
+      c.to = adjList[c.to][Math.floor(Math.random() * adjList[c.to].length)].to;
+      c.path = [c.from, c.to];
+      c.pi = 1; c.t = 0; c.lane = chooseLane(c);
+  }
+}
+
+function forceRepath(c){
+  cleanupCar(c);
+  for(let t=0;t<20;t++){
+      const g=rndBoundary();
+      if(g===c.from)continue;
+      const p=astar(c.from,g);
+      if(p&&p.length>=2){
+          c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.speed=0;c.stuck=0;c.lane=chooseLane(c);
+          return;
+      }
+  }
+  newGoal(c);
+}
+
 let tFrame=0;
 
-// Conversion mapping
-// traffic_sim.html sets:
-// 12th = 0, 11th = 210, 10th = 440, 9th = 680, 8th = 920
-// 42nd = 0, 41st = 80, 34th = 640, 30th = 960, 25th = 1360
-// map origin approx is 33rd/34th street and 10th/11th avenue
-
-// Map traffic simulator coordinates (x,y) to true Lng/Lat
-// 12th Ave & 42nd St = {x: 0, y: 0}       => [-74.0016, 40.7621]
-// 8th Ave & 25th St = {x: 920, y: 1360}  => [-73.9960, 40.7455]
-// These are approximate bounds for Hudson Yards area mapping.
-function getTrafficLngLat(tx, ty) {
-    const minLng = -74.0035; // 12th ave approx
-    const maxLng = -73.9940; // 8th ave approx
-    const maxLat = 40.7635;  // 42nd st approx
-    const minLat = 40.7470;  // 25th st approx
-
-    const xRatio = tx / 920;
-    const yRatio = ty / 1360;
-
-    // Avenues (X) go from West to East (Lng increases)
-    // Streets (Y) go from North to South (Lat decreases)
-    
-    // We will use a more precise affine transform based on actual coordinates 
-    // to match the map grid angle. Hudson yards streets are rotated ~29 degrees.
-    // Let's define 3 anchor points for an affine transform:
-    // P0: 12th & 34th (x: 0, y: 640)
-    // P1: 8th & 34th (x: 920, y: 640)
-    // P2: 12th & 42nd (x: 0, y: 0)
-
-    const P0_lng = -74.00625; const P0_lat = 40.75673;
-    const P1_lng = -73.99266; const P1_lat = 40.75133;
-    const P2_lng = -74.00314; const P2_lat = 40.76198;
-    
-    // Vector X (along 34th St from 12th to 8th):
-    const dx_x = P1_lng - P0_lng;
-    const dy_x = P1_lat - P0_lat;
-    
-    // Vector Y (along 12th Ave from 34th to 42nd):
-    const dx_y = P2_lng - P0_lng;
-    const dy_y = P2_lat - P0_lat;
-
-    const tx_diff = tx - 0;
-    const ty_diff = ty - 640; // going from y=640 to y=0 is -640 diff
-
-    const lng = P0_lng + (tx_diff / 920) * dx_x + (ty_diff / -640) * dx_y;
-    const lat = P0_lat + (tx_diff / 920) * dy_x + (ty_diff / -640) * dy_y;
-
-    return { lng, lat };
-}
 function tickCars(){
+  if (!graphBuilt) {
+      buildGraphFromMapTiler();
+      return;
+  }
+
   shBuild();
   for(const c of cars){
-    const eLen=Math.sqrt((nodes[c.to].x-nodes[c.from].x)**2+(nodes[c.to].y-nodes[c.from].y)**2)||1;
-    let tgt=c.maxSpd;c.stopped=false;
-    const dEnd=(1-c.t)*eLen;
-    const cosA=Math.cos(c.ang),sinA=Math.sin(c.ang);
-    if(c.inInt!==null){
-      if(c.from===c.inInt&&c.t>0.15){markLeave(c,c.inInt);c.inInt=null;}
-      else if(c.from!==c.inInt&&c.to!==c.inInt){markLeave(c,c.inInt);c.inInt=null;}
-    }
-    const near=shQ(c.x,c.y,CFG.FOLLOW_DIST*1.5);
-    let cd=Infinity,cs=0;
-    for(const o of near){
-      if(o.id===c.id)continue;
-      const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
-      if(dx*cosA+dy*sinA<=0)continue; 
-      if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue; 
-      const cross=Math.abs(dx*sinA-dy*cosA);
-      if(cross>CFG.CAR_WID*2.5)continue;
-      if(dist<cd){cd=dist;cs=o.speed;}
-    }
-    if(cd<CFG.FOLLOW_DIST){
-      const gap=Math.max(0,cd-c.len*1.2);
-      tgt=Math.min(tgt,cs+(gap/CFG.FOLLOW_DIST)*c.maxSpd*0.4);
-      if(cd<c.len*2){tgt=0;c.stopped=true;}
-    }
-    const an=nodes[c.to];
-    if(an.type!=='none'&&c.inInt===null&&dEnd<CFG.STOP_LINE_DIST*2.5){
-      const ok=canEnter(c,c.to);
-      if(!ok){c.waitAt=c.to;if(dEnd<CFG.STOP_LINE_DIST){tgt=0;c.stopped=true;}else{tgt=Math.min(tgt,c.maxSpd*((dEnd-CFG.STOP_LINE_DIST)/CFG.STOP_LINE_DIST)*0.35);}}
-      else if(dEnd<CFG.STOP_LINE_DIST){markEnter(c,c.to);c.inInt=c.to;c.waitAt=null;}
-      else{const dir=edgeDir(c.from,c.to);if(yellowFor(an,dir)&&dEnd>CFG.STOP_LINE_DIST*1.6)tgt=Math.min(tgt,0.25);}
-    }
-    // Omit pedestrian check from integration
-    if(c.speed<tgt)c.speed=Math.min(c.speed+CFG.CAR_ACCEL,tgt);
-    else if(c.speed>tgt)c.speed=Math.max(c.speed-(tgt===0?CFG.CAR_HARD_BRAKE:CFG.CAR_BRAKE),0);
-    if(c.speed<0.04){c.stuck++;if(c.stuck>CFG.STUCK_LIMIT)forceRepath(c);}else c.stuck=0;
-    c.t+=c.speed/eLen;
-    if(c.t>=1){
-      c.t=0;
-      if(nodes[c.to].isBoundary&&c.pi>=c.path.length-1){
-        cleanupCar(c);
-        if(c.isHwy){respawnHwy(c);}
-        else if(c.isTunnel){respawnTunnel(c);}
-        else{const nc=makeCar(true);if(nc)Object.assign(c,nc);else newGoal(c);}
-        continue;
-      }
-      if(c.pi>=c.path.length-1){
-        if(c.isHwy){respawnHwy(c);continue;}
-        if(c.isTunnel){respawnTunnel(c);continue;}
-        newGoal(c);
-      }
-      else{
-        c.pi++;c.from=c.to;c.to=c.path[c.pi];
-        if(!adjList[c.from].some(e=>e.to===c.to)){const np=astar(c.from,c.goal);if(np&&np.length>=2){c.path=np;c.pi=1;c.to=np[1];}else newGoal(c);}
-        c.lane=chooseLane(c);
-      }
-      c.t=Math.max(0,Math.min(c.t,0.99));
-    }
-    syncPos(c);
+      const eLen=Math.sqrt((nodes[c.to].x-nodes[c.from].x)**2+(nodes[c.to].y-nodes[c.from].y)**2)||1;
+      let tgt=c.maxSpd;c.stopped=false;
+      const dEnd=(1-c.t)*eLen;
+      const cosA=Math.cos(c.ang),sinA=Math.sin(c.ang);
 
-    // Update 3D visualization
-    if(!c.mesh && glbCustomLayer && glbCustomLayer.scene){
-        c.mesh = new THREE.Mesh(
-            new THREE.BoxGeometry(c.wid, c.wid, c.len),
-            new THREE.MeshBasicMaterial({color: PARAMS.carColor})
-        );
-        trafficGroup.add(c.mesh);
-    }
-    if(c.mesh) {
-        // Map 2D traffic coordinate to true GPS, then to ThreeJS mercator offset
-        const gps = getTrafficLngLat(c.x, c.y);
-        const lp = mercatorFromLngLat(gps.lng, gps.lat, 0);
-        c.mesh.position.set(lp.x, lp.y, lp.z);
-        
-        // Ensure rotation matches direction of travel.
-        // The simulation angle `c.ang` expects East to be 0 rad and goes counter-clockwise.
-        // The actual map rotation for Hudson Yards streets is roughly 29 degrees (0.506 radians).
-        // A vehicle's true heading must adjust for this offset as well as correct the axis mappings.
-        c.mesh.rotation.y = -c.ang - 0.506;
-    }
+      if(c.inInt!==null){
+          if(c.from===c.inInt&&c.t>0.15){markLeave(c,c.inInt);c.inInt=null;}
+          else if(c.from!==c.inInt&&c.to!==c.inInt){markLeave(c,c.inInt);c.inInt=null;}
+      }
+
+      const near=shQ(c.x,c.y,CFG.FOLLOW_DIST*1.5);
+      let cd=Infinity,cs=0;
+      for(const o of near){
+          if(o.id===c.id)continue;
+          const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
+          if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
+          if(dx*cosA+dy*sinA<=0)continue; // behind
+          if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue;
+          const cross=Math.abs(dx*sinA-dy*cosA);
+          if(cross>CFG.CAR_WID*2.5)continue;
+          if(dist<cd){cd=dist;cs=o.speed;}
+      }
+
+      if(cd<CFG.FOLLOW_DIST){
+          const gap=Math.max(0,cd-c.len*1.2);
+          tgt=Math.min(tgt,cs+(gap/CFG.FOLLOW_DIST)*c.maxSpd*0.4);
+          if(cd<c.len*2){tgt=0;c.stopped=true;}
+      }
+
+      const an=nodes[c.to];
+      if(an.type!=='none'&&c.inInt===null&&dEnd<CFG.STOP_LINE_DIST*2.5){
+          const ok=canEnter(c,c.to);
+          if(!ok){
+              c.waitAt=c.to;
+              if(dEnd<CFG.STOP_LINE_DIST){tgt=0;c.stopped=true;}
+              else{tgt=Math.min(tgt,c.maxSpd*((dEnd-CFG.STOP_LINE_DIST)/CFG.STOP_LINE_DIST)*0.35);}
+          } else if(dEnd<CFG.STOP_LINE_DIST){
+              markEnter(c,c.to);c.inInt=c.to;c.waitAt=null;
+          } else {
+              const dir=edgeDir(c.from,c.to);
+              if(yellowFor(an,dir)&&dEnd>CFG.STOP_LINE_DIST*1.6)tgt=Math.min(tgt,0.25);
+          }
+      }
+
+      if(c.speed<tgt)c.speed=Math.min(c.speed+CFG.CAR_ACCEL,tgt);
+      else if(c.speed>tgt)c.speed=Math.max(c.speed-(tgt===0?CFG.CAR_HARD_BRAKE:CFG.CAR_BRAKE),0);
+
+      if(c.speed<0.01){
+          c.stuck++;
+          if(c.stuck>CFG.STUCK_LIMIT)forceRepath(c);
+      }else c.stuck=0;
+
+      c.t+=c.speed/eLen;
+      if(c.t>=1){
+          c.t=0;
+          if(nodes[c.to].isBoundary&&c.pi>=c.path.length-1){
+              cleanupCar(c);
+              const nc=makeCar(true);
+              if(nc)Object.assign(c,nc);
+              else newGoal(c);
+              continue;
+          }
+          if(c.pi>=c.path.length-1){
+              newGoal(c);
+          } else {
+              c.pi++;c.from=c.to;c.to=c.path[c.pi];
+              if(!adjList[c.from].some(e=>e.to===c.to)){
+                  const np=astar(c.from,c.goal);
+                  if(np&&np.length>=2){c.path=np;c.pi=1;c.to=np[1];}else newGoal(c);
+              }
+              c.lane=chooseLane(c);
+          }
+          c.t=Math.max(0,Math.min(c.t,0.99));
+      }
+      syncPos(c);
+
+      // Fade out logic based on distance
+      const distKm = distanceKm(SITE.lat, SITE.lng, c.lat, c.lng);
+      let opacity = 1.0;
+      if (distKm > CFG.FADE_RADIUS_KM - 0.2) {
+          // fade from 1 to 0 over the last 0.2km
+          opacity = Math.max(0, 1 - (distKm - (CFG.FADE_RADIUS_KM - 0.2)) / 0.2);
+      }
+      if (distKm > CFG.FADE_RADIUS_KM && Math.random() < 0.05) {
+          // Sometimes respawn it if it goes out of bounds completely
+          cleanupCar(c);
+          const nc=makeCar(true);
+          if(nc)Object.assign(c,nc);
+          continue;
+      }
+
+      if(!c.mesh && glbCustomLayer && glbCustomLayer.scene){
+          c.mesh = new THREE.Mesh(
+              new THREE.BoxGeometry(c.wid, c.wid, c.len),
+              new THREE.MeshBasicMaterial({color: PARAMS.carColor, transparent: true})
+          );
+          trafficGroup.add(c.mesh);
+      }
+      if(c.mesh) {
+          // ThreeJS Mercator offset based on exact lat/lng
+          const lp = mercatorFromLngLat(c.lng, c.lat, 0);
+          c.mesh.position.set(lp.x, lp.y, lp.z);
+          // Angle in radians (Note: the ThreeJS space uses Z as forward for mesh? Box geometry uses Z for length)
+          c.mesh.rotation.y = -c.ang;
+          c.mesh.material.opacity = opacity;
+          c.mesh.visible = opacity > 0.01;
+      }
   }
+
   tFrame++;
-  if(tFrame%90===0){const ids=new Set(cars.map(c=>c.id));for(const n of nodes){for(const id of n.occupants)if(!ids.has(id))n.occupants.delete(id);if(!n.occupants.size)n.occupantDir=null;n.stopQ=n.stopQ.filter(id=>ids.has(id));for(const[id]of n.stopW)if(!ids.has(id))n.stopW.delete(id);}}
+  if(tFrame%90===0){
+      const ids=new Set(cars.map(c=>c.id));
+      for(const n of nodes){
+          for(const id of n.occupants)if(!ids.has(id))n.occupants.delete(id);
+          if(!n.occupants.size)n.occupantDir=null;
+          n.stopQ=n.stopQ.filter(id=>ids.has(id));
+          for(const[id]of n.stopW)if(!ids.has(id))n.stopW.delete(id);
+      }
+  }
 }
 
 /* ═══ SOLAR ANALYZER (INJECTED) ═══ */
