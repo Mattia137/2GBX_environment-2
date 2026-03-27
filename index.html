@@ -926,6 +926,12 @@ function loadAllGLBs(){
   GLB_FILES.forEach(filename => {
     loader.load(REPO_BASE + filename, (gltf) => {
       const model = gltf.scene; model.name = filename;
+
+      // Rotate buildings.glb to match High Line
+      if (filename === 'buildings.glb') {
+        model.rotation.y = THREE.MathUtils.degToRad(-119);
+      }
+
       const isSubway = filename === 'subway_system.glb';
       model.traverse(ch => {
         if (ch.isMesh) {
@@ -1003,6 +1009,10 @@ function loadActiveProject(filepath) {
   const loader = new THREE.GLTFLoader();
   loader.load(filepath, (gltf) => {
     activeProjectMesh = gltf.scene;
+
+    // Rotate project glbs to match High Line
+    activeProjectMesh.rotation.y = THREE.MathUtils.degToRad(-119);
+
     activeProjectOriginalMaterial = new THREE.MeshStandardMaterial({
       color: PARAMS.otherGlbMaterialColor,
       roughness: PARAMS.glbRoughness,
