@@ -1563,12 +1563,11 @@ function tickCars(){
           cleanupCar(c);
           const nc=makeCar(true);
           if(nc)Object.assign(c,nc);
-          continue;
       }
 
       if (trafficInstancedMesh && opacity > 0.01) {
-          const lp = mercatorFromLngLat(c.lng, c.lat, 0);
-          _dummyObj.position.set(lp.x, lp.y, lp.z);
+          // Local metric coordinates are already available from syncPos (c.x, c.y map to X and Z)
+          _dummyObj.position.set(c.x, 0, c.y);
           _dummyObj.rotation.set(0, -c.ang, 0);
           // Apply individual dimensions if car len/wid vary (which they do by random in makeCar)
           // Actually, we can just bake the car dimensions into the scale since the base geometry is 1x1x1
@@ -1582,6 +1581,7 @@ function tickCars(){
   }
 
   if (trafficInstancedMesh) {
+      // ⚡ Bolt Optimization: Ensure count is updated correctly so all active instances are drawn
       trafficInstancedMesh.count = instanceIndex;
       trafficInstancedMesh.instanceMatrix.needsUpdate = true;
   }
