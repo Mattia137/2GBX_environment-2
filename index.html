@@ -1122,14 +1122,13 @@ function addNode(lng, lat){
 
   const id = _nid++;
   nodeMap[key] = id;
-  // Convert lat/lng to mercator so distance calculations are metric
-  const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], 0);
-  const worldSize = 512; // base size
+  // Convert lat/lng to local GLB metric space so cars match the map visually
+  const lp = mercatorFromLngLat(lng, lat, 0);
 
   nodes.push({
     id, lng, lat,
-    x: mc.x * worldSize * 1000,
-    y: mc.y * worldSize * 1000,
+    x: lp.x, // Local space X (meters)
+    y: lp.z, // Local space Z (meters) - mapped to Y in traffic 2D logic
     key, type:'none',
     lightState: Math.random() > 0.5 ? 'green-h' : 'green-v',
     lightTimer: 50+Math.floor(Math.random()*CFG.LIGHT_GREEN),
@@ -1293,10 +1292,10 @@ function astar(s,e){
   const gS=new Map([[s,0]]), fS=new Map([[s,hr(s,e)]]), from=new Map();
   const open=new Set([s]), closed=new Set();
 
-  // Safety limit for astar iteration to prevent hanging on massive graphs
+  // ⚡ Bolt Optimization: Aggressively limit astar iteration to prevent hanging on massive graphs
   let iters = 0;
 
-  while(open.size && iters < 1000){
+  while(open.size && iters < 150){
       iters++;
       let cur=-1,best=Infinity;
       for(const id of open){
@@ -1419,7 +1418,8 @@ function syncPos(c){
 }
 
 function newGoal(c){
-  for(let t=0;t<30;t++){
+  // ⚡ Bolt Optimization: Aggressively reduce new goal retry loops to unblock main thread
+  for(let t=0;t<3;t++){
       const g=rndBoundary();
       if(g===c.to)continue;
       const p=astar(c.to,g);
@@ -1439,7 +1439,8 @@ function newGoal(c){
 
 function forceRepath(c){
   cleanupCar(c);
-  for(let t=0;t<20;t++){
+  // ⚡ Bolt Optimization: Aggressively reduce repath retry loops to unblock main thread
+  for(let t=0;t<3;t++){
       const g=rndBoundary();
       if(g===c.from)continue;
       const p=astar(c.from,g);
@@ -1471,7 +1472,8 @@ function tickCars(){
         trafficInstancedMesh.material.color.set(PARAMS.carColor);
     }
 
-  shBuild();
+  // ⚡ Bolt Optimization: Only rebuild spatial hash grid occasionally instead of every frame to save CPU time.
+  if (tFrame % 6 === 0) shBuild();
     let instanceIndex = 0;
     for(let i = 0; i < cars.length; i++){
         const c = cars[i];
@@ -1485,37 +1487,55 @@ function tickCars(){
           else if(c.from!==c.inInt&&c.to!==c.inInt){markLeave(c,c.inInt);c.inInt=null;}
       }
 
-      const near=shQ(c.x,c.y,CFG.FOLLOW_DIST*1.5);
-      let cd=Infinity,cs=0;
-      for(const o of near){
-          if(o.id===c.id)continue;
-          const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
-          if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
-          if(dx*cosA+dy*sinA<=0)continue; // behind
-          if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue;
-          const cross=Math.abs(dx*sinA-dy*cosA);
-          if(cross>CFG.CAR_WID*2.5)continue;
-          if(dist<cd){cd=dist;cs=o.speed;}
-      }
+      // ⚡ Bolt Optimization: Interleave collision and intersection logic per car ID to run less often
+      const updateCollisionsAndIntersections = (tFrame + c.id) % 6 === 0;
+      let tgtUpdated = false;
 
-      if(cd<CFG.FOLLOW_DIST){
-          const gap=Math.max(0,cd-c.len*1.2);
-          tgt=Math.min(tgt,cs+(gap/CFG.FOLLOW_DIST)*c.maxSpd*0.4);
-          if(cd<c.len*2){tgt=0;c.stopped=true;}
-      }
+      if (updateCollisionsAndIntersections) {
+          const near=shQ(c.x,c.y,CFG.FOLLOW_DIST*1.5);
+          let cd=Infinity,cs=0;
+          for(const o of near){
+              if(o.id===c.id)continue;
+              const dx=o.x-c.x,dy=o.y-c.y,dist=Math.sqrt(dx*dx+dy*dy);
+              if(dist<0.5||dist>CFG.FOLLOW_DIST*1.4)continue;
+              if(dx*cosA+dy*sinA<=0)continue; // behind
+              if(Math.cos(c.ang)*Math.cos(o.ang)+Math.sin(c.ang)*Math.sin(o.ang)<0.2)continue;
+              const cross=Math.abs(dx*sinA-dy*cosA);
+              if(cross>CFG.CAR_WID*2.5)continue;
+              if(dist<cd){cd=dist;cs=o.speed;}
+          }
 
-      const an=nodes[c.to];
-      if(an.type!=='none'&&c.inInt===null&&dEnd<CFG.STOP_LINE_DIST*2.5){
-          const ok=canEnter(c,c.to);
-          if(!ok){
-              c.waitAt=c.to;
-              if(dEnd<CFG.STOP_LINE_DIST){tgt=0;c.stopped=true;}
-              else{tgt=Math.min(tgt,c.maxSpd*((dEnd-CFG.STOP_LINE_DIST)/CFG.STOP_LINE_DIST)*0.35);}
-          } else if(dEnd<CFG.STOP_LINE_DIST){
-              markEnter(c,c.to);c.inInt=c.to;c.waitAt=null;
-          } else {
-              const dir=edgeDir(c.from,c.to);
-              if(yellowFor(an,dir)&&dEnd>CFG.STOP_LINE_DIST*1.6)tgt=Math.min(tgt,0.25);
+          if(cd<CFG.FOLLOW_DIST){
+              const gap=Math.max(0,cd-c.len*1.2);
+              tgt=Math.min(tgt,cs+(gap/CFG.FOLLOW_DIST)*c.maxSpd*0.4);
+              if(cd<c.len*2){tgt=0;c.stopped=true;}
+              tgtUpdated = true;
+          }
+
+          const an=nodes[c.to];
+          if(an.type!=='none'&&c.inInt===null&&dEnd<CFG.STOP_LINE_DIST*2.5){
+              const ok=canEnter(c,c.to);
+              if(!ok){
+                  c.waitAt=c.to;
+                  if(dEnd<CFG.STOP_LINE_DIST){tgt=0;c.stopped=true;}
+                  else{tgt=Math.min(tgt,c.maxSpd*((dEnd-CFG.STOP_LINE_DIST)/CFG.STOP_LINE_DIST)*0.35);}
+                  tgtUpdated = true;
+              } else if(dEnd<CFG.STOP_LINE_DIST){
+                  markEnter(c,c.to);c.inInt=c.to;c.waitAt=null;
+              } else {
+                  const dir=edgeDir(c.from,c.to);
+                  if(yellowFor(an,dir)&&dEnd>CFG.STOP_LINE_DIST*1.6) {
+                      tgt=Math.min(tgt,0.25);
+                      tgtUpdated = true;
+                  }
+              }
+          }
+          c.cachedTgt = tgt;
+          c.cachedTgtUpdated = tgtUpdated;
+      } else {
+          // Use cached target from previous frames if we skipped the expensive check
+          if (c.cachedTgtUpdated) {
+              tgt = c.cachedTgt;
           }
       }
 
@@ -1524,7 +1544,8 @@ function tickCars(){
 
       if(c.speed<0.01){
           c.stuck++;
-          if(c.stuck>CFG.STUCK_LIMIT)forceRepath(c);
+          // ⚡ Bolt Optimization: Increase limit slightly and do staggered repathing
+          if(c.stuck>CFG.STUCK_LIMIT && (tFrame + c.id) % 30 === 0) forceRepath(c);
       }else c.stuck=0;
 
       c.t+=c.speed/eLen;
@@ -1542,8 +1563,19 @@ function tickCars(){
           } else {
               c.pi++;c.from=c.to;c.to=c.path[c.pi];
               if(!adjList[c.from].some(e=>e.to===c.to)){
-                  const np=astar(c.from,c.goal);
-                  if(np&&np.length>=2){c.path=np;c.pi=1;c.to=np[1];}else newGoal(c);
+                  // ⚡ Bolt Optimization: Only try pathing if we haven't failed recently
+                  if (c.repathFailures < 3) {
+                      const np=astar(c.from,c.goal);
+                      if(np&&np.length>=2){
+                          c.path=np;c.pi=1;c.to=np[1];
+                          c.repathFailures = 0;
+                      } else {
+                          c.repathFailures = (c.repathFailures || 0) + 1;
+                          newGoal(c);
+                      }
+                  } else {
+                       newGoal(c);
+                  }
               }
               c.lane=chooseLane(c);
           }
