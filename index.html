@@ -1101,7 +1101,7 @@ const CFG = {
   FOLLOW_DIST: 10, STOP_LINE_DIST: 5,
   ST_LANE: 2.0, AVE_LANE: 4.0,
   LIGHT_GREEN: 280, LIGHT_YELLOW: 50, LIGHT_ALL_RED: 25,
-  STOP_WAIT: 65, PED_DETECT: 18, STUCK_LIMIT: 300,
+  STOP_WAIT: 65, PED_DETECT: 18, STUCK_LIMIT: 800,
   FADE_RADIUS_KM: 0.8
 };
 const cars=[];let carId=0;
@@ -1439,17 +1439,19 @@ function newGoal(c){
 
 function forceRepath(c){
   cleanupCar(c);
-  // ⚡ Bolt Optimization: Aggressively reduce repath retry loops to unblock main thread
-  for(let t=0;t<3;t++){
-      const g=rndBoundary();
-      if(g===c.from)continue;
-      const p=astar(c.from,g);
-      if(p&&p.length>=2){
-          c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.speed=0;c.stuck=0;c.lane=chooseLane(c);
-          return;
-      }
+  // Instead of teleporting backwards to the start of the current path and instantly
+  // getting stuck in the same jam again, despawn the stuck car and create a new one.
+  // Note: makeCar() automatically pushes to the cars array, so we need to pop it off
+  // before we overwrite our current car object, to avoid a memory leak.
+  const nc = makeCar(true);
+  if(nc) {
+      cars.pop(); // Remove the newly pushed car from the array
+      // Keep the original car id so we don't break other references
+      const oldId = c.id;
+      Object.assign(c, nc);
+      c.id = oldId;
   }
-  newGoal(c);
+  else newGoal(c);
 }
 
 let tFrame=0;
@@ -1483,7 +1485,10 @@ function tickCars(){
       const cosA=Math.cos(c.ang),sinA=Math.sin(c.ang);
 
       if(c.inInt!==null){
-          if(c.from===c.inInt&&c.t>0.15){markLeave(c,c.inInt);c.inInt=null;}
+          // Free the intersection once the car has physically traveled past it
+          // (car length * 1.5 buffer) instead of waiting for an arbitrary 15%
+          // of the entire next street block, which causes massive jams on long blocks.
+          if(c.from===c.inInt && (c.t * eLen) > (c.len * 1.5)){markLeave(c,c.inInt);c.inInt=null;}
           else if(c.from!==c.inInt&&c.to!==c.inInt){markLeave(c,c.inInt);c.inInt=null;}
       }
 
@@ -1554,7 +1559,12 @@ function tickCars(){
           if(nodes[c.to].isBoundary&&c.pi>=c.path.length-1){
               cleanupCar(c);
               const nc=makeCar(true);
-              if(nc)Object.assign(c,nc);
+              if(nc){
+                  cars.pop(); // Remove the newly pushed car from the array
+                  const oldId = c.id;
+                  Object.assign(c,nc);
+                  c.id = oldId;
+              }
               else newGoal(c);
               continue;
           }
@@ -1594,7 +1604,12 @@ function tickCars(){
           // Sometimes respawn it if it goes out of bounds completely
           cleanupCar(c);
           const nc=makeCar(true);
-          if(nc)Object.assign(c,nc);
+          if(nc){
+              cars.pop(); // Remove the newly pushed car from the array
+              const oldId = c.id;
+              Object.assign(c,nc);
+              c.id = oldId;
+          }
       }
 
       if (trafficInstancedMesh && opacity > 0.01) {
@@ -1604,7 +1619,9 @@ function tickCars(){
           // Apply individual dimensions if car len/wid vary (which they do by random in makeCar)
           // Actually, we can just bake the car dimensions into the scale since the base geometry is 1x1x1
           // We use opacity to scale it down slightly as it reaches the edge
-          _dummyObj.scale.set(c.wid * opacity, c.wid * opacity, c.len * opacity);
+          // Note: Car movement direction (angle) is applied as rotation on the Y-axis. The local X-axis
+          // points in the direction of travel, so the length needs to scale along X, not Z.
+          _dummyObj.scale.set(c.len * opacity, c.wid * opacity, c.wid * opacity);
           _dummyObj.updateMatrix();
 
           trafficInstancedMesh.setMatrixAt(instanceIndex, _dummyObj.matrix);
