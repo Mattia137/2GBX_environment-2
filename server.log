@@ -1,0 +1,70 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/http/server.py", line 1329, in <module>
+    test(
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/http/server.py", line 1276, in test
+    with ServerClass(addr, HandlerClass) as httpd:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/socketserver.py", line 457, in __init__
+    self.server_bind()
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/http/server.py", line 1323, in server_bind
+    return super().server_bind()
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/http/server.py", line 140, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/socketserver.py", line 478, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+127.0.0.1 - - [30/Mar/2026 18:12:05] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /buildings.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /highline.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /dsr.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /hy_new_dev.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /railroads.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /cold_storage.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /site_building.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /street.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:08] "GET /street_props.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:14] "GET /subway_system.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:18] "GET /terrain.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:12:20] "GET /projects_glbs/G11_hyperobject.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:11] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /buildings.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /dsr.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /highline.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /cold_storage.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /site_building.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /hy_new_dev.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /railroads.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:15] "GET /street.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:16] "GET /street_props.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:22] "GET /subway_system.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:27] "GET /terrain.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:14:28] "GET /projects_glbs/G11_hyperobject.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:27] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /dsr.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /cold_storage.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /buildings.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /highline.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /hy_new_dev.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /railroads.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /site_building.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:33] "GET /street.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:34] "GET /street_props.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:39] "GET /subway_system.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:43] "GET /terrain.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:17:45] "GET /projects_glbs/G11_hyperobject.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:23] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /buildings.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /cold_storage.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /dsr.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /railroads.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /hy_new_dev.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /highline.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /site_building.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /street.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:27] "GET /street_props.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:32] "GET /subway_system.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:35] "GET /terrain.glb HTTP/1.1" 200 -
+127.0.0.1 - - [30/Mar/2026 18:19:36] "GET /projects_glbs/G11_hyperobject.glb HTTP/1.1" 200 -
