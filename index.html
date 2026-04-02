@@ -291,6 +291,10 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@liveblocks/client@3.
    PARAMETERS — EASY ACCESS SETTINGS
    ══════════════════════════════════════════════ */
 const PARAMS = {
+  // Model Alignment
+  glbRotationY: 119, // Degrees
+  glbOffsetX: 0,
+  glbOffsetZ: 0,
   // Material
   buildingColor: 0xffffff,
   buildingOpacity: 0.35,
@@ -490,15 +494,58 @@ async function initMap(){
 
       const src=Object.keys(map.getStyle().sources).find(k=>map.getStyle().sources[k].type==='vector')||'openmaptiles';
 
-      // Cut out area for High-res Geometry
-      // Calculated from the base vertices of the bounding_box.glb file.
-      const excludePolygon = turf.polygon([[
+      // Base vertices in Mercator coordinates relative to GLB_ORIGIN before any rotation/offset
+      const baseExcludeVertices = [
         [-74.00561857508424, 40.75731190275977],
         [-73.99912223957497, 40.75456178563417],
         [-74.00275276933448, 40.74964054477445],
         [-74.0092491053866, 40.752390865530714],
         [-74.00561857508424, 40.75731190275977]
-      ]]);
+      ];
+
+      let excludePolygon = null;
+
+      // Function to recalculate the exclude polygon based on current transformation params
+      window.updateExcludePolygon = () => {
+         const rotRad = THREE.MathUtils.degToRad(PARAMS.glbRotationY);
+         const cosR = Math.cos(rotRad);
+         const sinR = Math.sin(rotRad);
+
+         // We need to do the same transform we do in 3D, but in reverse/2D for turf.js.
+         // In Three.js, we translate then rotate around local origin.
+         // Let's use the `mercatorFromLngLat` utility which converts LngLat to local meters.
+         // But we actually need to go FROM local meters (rotated/offset) TO LngLat.
+
+         const mcOrigin = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
+         const mScale = mcOrigin.meterInMercatorCoordinateUnits();
+
+         const newCoords = baseExcludeVertices.map(coord => {
+             // 1. Get original local position in meters relative to GLB_ORIGIN
+             const mc = maplibregl.MercatorCoordinate.fromLngLat([coord[0], coord[1]], 0);
+             const localX = (mc.x - mcOrigin.x) / mScale;
+             const localZ = (mc.y - mcOrigin.y) / mScale; // Note: Mercator Y maps to Three Z in our setup
+
+             // 2. Apply the rotation and offset (matches Three.js group)
+             const rotX = localX * cosR + localZ * sinR;
+             const rotZ = -localX * sinR + localZ * cosR;
+
+             const finalX = rotX + PARAMS.glbOffsetX;
+             const finalZ = rotZ + PARAMS.glbOffsetZ;
+
+             // 3. Convert back to Mercator
+             const newMcX = finalX * mScale + mcOrigin.x;
+             const newMcY = finalZ * mScale + mcOrigin.y;
+
+             // 4. Convert Mercator to LngLat
+             const newLngLat = new maplibregl.MercatorCoordinate(newMcX, newMcY, 0).toLngLat();
+             return [newLngLat.lng, newLngLat.lat];
+         });
+
+         excludePolygon = turf.polygon([newCoords]);
+      };
+
+      // Initialize the polygon
+      window.updateExcludePolygon();
       
       const buildingLayers = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building');
 
@@ -759,6 +806,13 @@ function loadAllGLBs(){
     onAdd(m, gl){
       this.camera = new THREE.Camera();
       this.scene = new THREE.Scene();
+
+      this.siteModelGroup = new THREE.Group();
+      this.scene.add(this.siteModelGroup);
+
+      this.siteModelGroup.rotation.y = THREE.MathUtils.degToRad(PARAMS.glbRotationY);
+      this.siteModelGroup.position.set(PARAMS.glbOffsetX, 0, PARAMS.glbOffsetZ);
+
       this.scene.add(new THREE.AmbientLight(0xffffff, PARAMS.ambientIntensity));
       const dl = new THREE.DirectionalLight(0xffffff, PARAMS.dirLightIntensity);
       dl.position.set(0, -70, 100);
@@ -949,7 +1003,7 @@ function loadAllGLBs(){
           });
         }
       });
-      glbCustomLayer.scene.add(model);
+      glbCustomLayer.siteModelGroup.add(model);
       glbLoaded++;
       document.getElementById('v-glb').textContent = glbLoaded + '/' + GLB_FILES.length;
       document.getElementById('glb-status').textContent = '> ' + filename + ' loaded';
@@ -1027,8 +1081,8 @@ function loadActiveProject(filepath) {
         ch.material = activeProjectOriginalMaterial;
       }
     });
-    if (glbCustomLayer && glbCustomLayer.scene) {
-      glbCustomLayer.scene.add(activeProjectMesh);
+    if (glbCustomLayer && glbCustomLayer.siteModelGroup) {
+      glbCustomLayer.siteModelGroup.add(activeProjectMesh);
     }
     
     // Wireframe Preview setup
@@ -1085,7 +1139,7 @@ function setupGLB(){
   function doUp(f){st.textContent='> LOADING '+f.name;
     const r=new FileReader();r.onload=function(e){new THREE.GLTFLoader().parse(e.target.result,'',gltf=>{
       const m=gltf.scene;m.traverse(ch=>{if(ch.isMesh){ch.castShadow=shadowsEnabled;ch.receiveShadow=shadowsEnabled;ch.material=new THREE.MeshStandardMaterial({color:PARAMS.glbColor,roughness:PARAMS.glbRoughness,metalness:PARAMS.glbMetalness,transparent:true,opacity:PARAMS.glbOpacity,side:THREE.DoubleSide})}});
-      if(glbCustomLayer&&glbCustomLayer.scene)glbCustomLayer.scene.add(m);
+      if(glbCustomLayer&&glbCustomLayer.siteModelGroup)glbCustomLayer.siteModelGroup.add(m);
       st.textContent='> LOADED '+f.name;z.textContent=f.name.toUpperCase();
     })};r.readAsArrayBuffer(f);}
 }
@@ -1798,12 +1852,14 @@ async function runAnalysis() {
     box.setFromObject(activeProjectMesh);
     
     // Include the main static GLBs as context for shadows
-    glbCustomLayer.scene.children.forEach(c => {
-      if(c !== activeProjectMesh && c !== culturalTagsGroup && c !== glbCustomLayer.remotePlayersGroup && c !== trafficGroup && c !== glbCustomLayer.gridHelper && !c.isLight) {
-        const cBox = new THREE.Box3().setFromObject(c);
-        if(!cBox.isEmpty()) box.union(cBox);
-      }
-    });
+    if(glbCustomLayer.siteModelGroup) {
+      glbCustomLayer.siteModelGroup.children.forEach(c => {
+        if(c !== activeProjectMesh && !c.isLight) {
+          const cBox = new THREE.Box3().setFromObject(c);
+          if(!cBox.isEmpty()) box.union(cBox);
+        }
+      });
+    }
 
     const center = new THREE.Vector3();
     box.getCenter(center);
@@ -1827,12 +1883,14 @@ async function runAnalysis() {
 
     // Cache old materials and apply DepthMaterial exclusively for shadow testing
     const origMats = new Map();
-    glbCustomLayer.scene.traverse(child => {
-        if (child.isMesh && child.parent !== culturalTagsGroup && child.parent !== glbCustomLayer.remotePlayersGroup && child.parent !== trafficGroup) {
-            origMats.set(child, child.material);
-            child.material = depthMat;
-        }
-    });
+    if(glbCustomLayer.siteModelGroup) {
+      glbCustomLayer.siteModelGroup.traverse(child => {
+          if (child.isMesh) {
+              origMats.set(child, child.material);
+              child.material = depthMat;
+          }
+      });
+    }
 
     // Hide non-occluding scene props
     const hideObjects = [glbCustomLayer.gridHelper, culturalTagsGroup, trafficGroup];
@@ -1906,11 +1964,13 @@ async function runAnalysis() {
             hideObjects.forEach(obj => {if(obj) obj.visible = true});
             glbCustomLayer.renderer.setClearColor(oldClearColor, oldClearAlpha);
             
-            glbCustomLayer.scene.traverse(child => {
-                if (child.isMesh && origMats.has(child)) {
-                    child.material = origMats.get(child);
-                }
-            });
+            if(glbCustomLayer.siteModelGroup) {
+              glbCustomLayer.siteModelGroup.traverse(child => {
+                  if (child.isMesh && origMats.has(child)) {
+                      child.material = origMats.get(child);
+                  }
+              });
+            }
 
             glbCustomLayer.renderer.setRenderTarget(null);
             rt.dispose();
@@ -2235,6 +2295,23 @@ async function main(){
     if(siteMarkerMesh) culturalTagsGroup.add(siteMarkerMesh);
     updateCulturalTags();
   };
+  const fAlign = gui.addFolder('Model Alignment');
+  const onAlignChange = () => {
+    if (glbCustomLayer && glbCustomLayer.siteModelGroup) {
+      glbCustomLayer.siteModelGroup.rotation.y = THREE.MathUtils.degToRad(PARAMS.glbRotationY);
+      glbCustomLayer.siteModelGroup.position.set(PARAMS.glbOffsetX, 0, PARAMS.glbOffsetZ);
+      if(window.updateExcludePolygon) {
+         window.updateExcludePolygon();
+         // Force an update to clear and re-evaluate hidden buildings
+         if (window.forceUpdateBuildingFilter) window.forceUpdateBuildingFilter();
+      }
+      if(map) map.triggerRepaint();
+    }
+  };
+  fAlign.add(PARAMS, 'glbRotationY', 0, 360).onChange(onAlignChange);
+  fAlign.add(PARAMS, 'glbOffsetX', -500, 500).onChange(onAlignChange);
+  fAlign.add(PARAMS, 'glbOffsetZ', -500, 500).onChange(onAlignChange);
+
   const fTag = gui.addFolder('Cultural Tags');
   fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(onCulturalTagChange);
   fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(onCulturalTagChange);
@@ -2279,8 +2356,8 @@ async function main(){
     }
   });
   fMat.addColor(PARAMS, 'otherGlbMaterialColor').onChange(c => {
-    if (glbCustomLayer && glbCustomLayer.scene) {
-        glbCustomLayer.scene.children.forEach(obj => {
+    if (glbCustomLayer && glbCustomLayer.siteModelGroup) {
+        glbCustomLayer.siteModelGroup.children.forEach(obj => {
             if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
                 obj.traverse(child => {
                     if(child.isMesh && child.material) child.material.color.setHex(c);
@@ -2293,8 +2370,8 @@ async function main(){
     }
   });
   fMat.add(PARAMS, 'otherGlbMaterialOpacity', 0, 1).onChange(o => {
-    if (glbCustomLayer && glbCustomLayer.scene) {
-        glbCustomLayer.scene.children.forEach(obj => {
+    if (glbCustomLayer && glbCustomLayer.siteModelGroup) {
+        glbCustomLayer.siteModelGroup.children.forEach(obj => {
             if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
                 obj.traverse(child => {
                     if(child.isMesh && child.material) child.material.opacity = o;
