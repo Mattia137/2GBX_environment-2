@@ -461,8 +461,9 @@ document.getElementById('sun-hour').oninput=updateSun;
 /* ═══ STYLE ═══ */
 function cleanStyle(s){
   if(!s.layers)return s;
-  s.layers=s.layers.filter(l=>{if(l.type==='symbol')return false;const id=(l.id||'').toLowerCase();return!(id.includes('label')||id.includes('name')||id.includes('poi')||id.includes('icon')||id.includes('shield')||id.includes('oneway')||id.includes('arrow'))});
+  s.layers=s.layers.filter(l=>{const id=(l.id||'').toLowerCase();if(id.includes('poi'))return true;if(l.type==='symbol')return false;return!(id.includes('label')||id.includes('name')||id.includes('icon')||id.includes('shield')||id.includes('oneway')||id.includes('arrow'))});
   s.layers.forEach(l=>{const id=(l.id||'').toLowerCase(),t=l.type;
+    if(id.includes('poi')){if(t==='symbol'){l.layout={...l.layout,'visibility':'none'};}return;}
     if(t==='background'){l.paint={'background-color':PARAMS.backgroundFill};return}
     if(id.includes('water')||id.includes('ocean')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.waterColor,'fill-opacity':PARAMS.waterOpacity};if(t==='line')l.paint={...l.paint,'line-color':'#0c0c10','line-opacity':.3};return}
     if(id.includes('land')||id.includes('park')||id.includes('grass')||id.includes('wood')||id.includes('vegetation')||id.includes('cemetery')||id.includes('sand')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.landFill,'fill-opacity':PARAMS.landOpacity};return}
@@ -633,7 +634,7 @@ async function initMap(){
       loadAllGLBs();initTransit();startHUD();
     });
     map.on('move',updateMapHUD);
-    map.on('moveend', updateCulturalTags);
+    map.on('idle', updateCulturalTags);
     if(map.isStyleLoaded()) updateCulturalTags();
   }catch(err){console.error(err);document.getElementById('error-msg').textContent='MAP LOAD: '+err.message;document.getElementById('error-msg').style.display='block';}
 }
