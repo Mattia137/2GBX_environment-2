@@ -293,11 +293,77 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 
 <div id="settings-panel">
   <div class="hp-t" style="padding-bottom:6px;border-bottom:1px solid var(--ln1)">· PARAMETERS<div style="flex:1"></div><span style="cursor:pointer;color:var(--t4);font-size:9px" onclick="toggleSettings()">×</span></div>
+
   <div class="sp-section open">
     <div class="sp-header" onclick="toggleSection(this)">▾ PROJECT MATERIAL</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-projectColor" value="#ffffff"><span class="sp-val" id="sv-projectColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">OPACITY</span><input type="range" class="sp-slider" id="s-projectOpacity" min="0" max="1" step="0.01" value="1.00"><span class="sp-val" id="sv-projectOpacity">1.00</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-projectOpacity" min="0" max="1" step="0.01" value="0.90"><span class="sp-val" id="sv-projectOpacity">0.90</span></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-projectMetalness" min="0" max="1" step="0.01" value="0.00"><span class="sp-val" id="sv-projectMetalness">0.00</span></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-projectRoughness" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-projectRoughness">0.50</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ SITE MODELS MATERIAL</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-glbColor" value="#ffffff"><span class="sp-val" id="sv-glbColor">ffffff</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-glbOpacity" min="0" max="1" step="0.01" value="0.35"><span class="sp-val" id="sv-glbOpacity">0.35</span></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-glbMetalness" min="0" max="1" step="0.01" value="0.10"><span class="sp-val" id="sv-glbMetalness">0.10</span></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-glbRoughness" min="0" max="1" step="0.01" value="0.80"><span class="sp-val" id="sv-glbRoughness">0.80</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ SUBWAY MATERIAL</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-subwayColor" value="#aa88ff"><span class="sp-val" id="sv-subwayColor">aa88ff</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-subwayOpacity" min="0" max="1" step="0.01" value="0.80"><span class="sp-val" id="sv-subwayOpacity">0.80</span></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-subwayMetalness" min="0" max="1" step="0.01" value="0.00"><span class="sp-val" id="sv-subwayMetalness">0.00</span></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-subwayRoughness" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-subwayRoughness">0.50</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ MAP BUILDINGS</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-buildingColor" value="#ffffff"><span class="sp-val" id="sv-buildingColor">ffffff</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-buildingOpacity">0.50</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ MAP STREETS</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-roadColor" value="#161620"><span class="sp-val" id="sv-roadColor">161620</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-roadOpacity" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-roadOpacity">0.50</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ MAP WATER</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-waterColor" value="#666666"><span class="sp-val" id="sv-waterColor">666666</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-waterOpacity" min="0" max="1" step="0.01" value="0.40"><span class="sp-val" id="sv-waterOpacity">0.40</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ DIRECTIONAL LIGHT</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-dirColor" value="#ffffff"><span class="sp-val" id="sv-dirColor">ffffff</span></div>
+      <div class="sp-row"><span class="sp-label">INTENSITY</span><input type="range" class="sp-slider" id="s-dirIntensity" min="0" max="5" step="0.05" value="1.25"><span class="sp-val" id="sv-dirIntensity">1.25</span></div>
+      <div class="sp-row"><span class="sp-label">AZIMUTH</span><input type="range" class="sp-slider" id="s-dirAzimuth" min="0" max="360" step="1" value="225"><span class="sp-val" id="sv-dirAzimuth">225°</span></div>
+      <div class="sp-row"><span class="sp-label">ALTITUDE</span><input type="range" class="sp-slider" id="s-dirAltitude" min="0" max="90" step="1" value="45"><span class="sp-val" id="sv-dirAltitude">45°</span></div>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ ENV LIGHT</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-ambColor" value="#ffffff"><span class="sp-val" id="sv-ambColor">ffffff</span></div>
+      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="range" class="sp-slider" id="s-ambIntensity" min="0" max="3" step="0.05" value="0.85"><span class="sp-val" id="sv-ambIntensity">0.85</span></div>
+      <div class="sp-row"><span class="sp-label">HEMI</span><input type="range" class="sp-slider" id="s-hemiIntensity" min="0" max="3" step="0.05" value="1.00"><span class="sp-val" id="sv-hemiIntensity">1.00</span></div>
     </div>
   </div>
 </div>
@@ -326,7 +392,6 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@liveblocks/client@3.
    ══════════════════════════════════════════════ */
 const PARAMS = {
   // Material
-  buildingColor: 0xffffff,
   buildingOpacity: 0.50,
   glbColor: 0xffffff,
   glbOpacity: 0.60,
@@ -334,15 +399,28 @@ const PARAMS = {
   glbMetalness: 0.0,
   subwayMaterialColor: 0xaa88ff,
   subwayMaterialOpacity: 0.8,
+  subwayMaterialMetalness: 0.0,
+  subwayMaterialRoughness: 0.5,
   otherGlbMaterialColor: 0xffffff,
-  otherGlbMaterialOpacity: 0.45,
+  otherGlbMaterialOpacity: 0.35,
+  otherGlbMaterialMetalness: 0.10,
+  otherGlbMaterialRoughness: 0.80,
   // Project GLB (distinct)
   projectColor: 0xffffff,
   projectEmissive: 0x1a1a2e,
   projectOpacity: 0.90,
+  projectMetalness: 0.0,
+  projectRoughness: 0.5,
   // Light
+  ambientColor: 0xffffff,
   ambientIntensity: 0.85,
+  hemiIntensity: 1.0,
+  dirLightColor: 0xffffff,
   dirLightIntensity: 1.25,
+  dirLightAzimuth: 225,
+  dirLightAltitude: 45,
+  // Map buildings
+  buildingColor: '#ffffff',
   // Map
   backgroundFill: '#050506',
   landFill: '#060608',
@@ -820,10 +898,17 @@ function loadAllGLBs(){
     onAdd(m, gl){
       this.camera = new THREE.Camera();
       this.scene = new THREE.Scene();
-      this.scene.add(new THREE.AmbientLight(0xffffff, PARAMS.ambientIntensity));
-      
-      const hl = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-      this.scene.add(hl);
+      this.ambientLight = new THREE.AmbientLight(PARAMS.ambientColor, PARAMS.ambientIntensity);
+      this.scene.add(this.ambientLight);
+
+      this.hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, PARAMS.hemiIntensity);
+      this.scene.add(this.hemiLight);
+
+      this.dirLight = new THREE.DirectionalLight(PARAMS.dirLightColor, PARAMS.dirLightIntensity);
+      const _daz = PARAMS.dirLightAzimuth * Math.PI / 180;
+      const _dal = PARAMS.dirLightAltitude * Math.PI / 180;
+      this.dirLight.position.set(Math.sin(_daz) * Math.cos(_dal) * 3000, Math.sin(_dal) * 3000, -Math.cos(_daz) * Math.cos(_dal) * 3000);
+      this.scene.add(this.dirLight);
 
 
 
@@ -2487,7 +2572,7 @@ function toggleSection(header) {
 window.toggleSection = toggleSection;
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 's' && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+  if (e.key === 's' && !e.ctrlKey && !e.metaKey && !e.altKey && !firstPersonActive && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
     toggleSettings();
   }
 });
@@ -2532,7 +2617,16 @@ function updateGlbMaterials() {
   if (!glbCustomLayer || !glbCustomLayer.scene) return;
   glbCustomLayer.scene.children.forEach(obj => {
     if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
-      obj.traverse(child => { if (child.isMesh && child.material) child.material.opacity = PARAMS.otherGlbMaterialOpacity; });
+      obj.traverse(child => {
+        if (child.isMesh && child.material) {
+          child.material.color.setHex(PARAMS.otherGlbMaterialColor);
+          child.material.opacity = PARAMS.otherGlbMaterialOpacity;
+          child.material.transparent = PARAMS.otherGlbMaterialOpacity < 1.0;
+          child.material.metalness = PARAMS.otherGlbMaterialMetalness;
+          child.material.roughness = PARAMS.otherGlbMaterialRoughness;
+          child.material.needsUpdate = true;
+        }
+      });
     }
   });
 }
@@ -2541,7 +2635,14 @@ function updateSubwayMaterial() {
   if (!glbCustomLayer || !glbCustomLayer.scene) return;
   const sub = glbCustomLayer.scene.getObjectByName('subway_system.glb');
   if (sub) sub.traverse(child => {
-    if (child.isMesh && child.material) { child.material.color.setHex(PARAMS.subwayMaterialColor); child.material.opacity = PARAMS.subwayMaterialOpacity; }
+    if (child.isMesh && child.material) {
+      child.material.color.setHex(PARAMS.subwayMaterialColor);
+      child.material.opacity = PARAMS.subwayMaterialOpacity;
+      child.material.transparent = PARAMS.subwayMaterialOpacity < 1.0;
+      child.material.metalness = PARAMS.subwayMaterialMetalness;
+      child.material.roughness = PARAMS.subwayMaterialRoughness;
+      child.material.needsUpdate = true;
+    }
   });
 }
 
@@ -2556,10 +2657,50 @@ function updateWaterStyle() {
 }
 
 function updateLighting() {
-  if (!glbCustomLayer || !glbCustomLayer.scene) return;
-  glbCustomLayer.scene.children.forEach(child => {
-    if (child.isAmbientLight) child.intensity = PARAMS.ambientIntensity;
-    if (child.isDirectionalLight) child.intensity = PARAMS.dirLightIntensity;
+  if (!glbCustomLayer) return;
+  if (glbCustomLayer.ambientLight) {
+    glbCustomLayer.ambientLight.color.setHex(PARAMS.ambientColor);
+    glbCustomLayer.ambientLight.intensity = PARAMS.ambientIntensity;
+  }
+  if (glbCustomLayer.hemiLight) {
+    glbCustomLayer.hemiLight.intensity = PARAMS.hemiIntensity;
+  }
+  if (glbCustomLayer.dirLight) {
+    glbCustomLayer.dirLight.color.setHex(PARAMS.dirLightColor);
+    glbCustomLayer.dirLight.intensity = PARAMS.dirLightIntensity;
+    const az = PARAMS.dirLightAzimuth * Math.PI / 180;
+    const al = PARAMS.dirLightAltitude * Math.PI / 180;
+    glbCustomLayer.dirLight.position.set(Math.sin(az) * Math.cos(al) * 3000, Math.sin(al) * 3000, -Math.cos(az) * Math.cos(al) * 3000);
+  }
+  if (map) map.triggerRepaint();
+}
+
+function updateStreetStyle() {
+  if (!map) return;
+  const layers = map.getStyle().layers.filter(l => {
+    const id = (l.id || '').toLowerCase();
+    return id.includes('road') || id.includes('street') || id.includes('highway') || id.includes('motorway') || id.includes('trunk') || id.includes('path') || id.includes('bridge') || id.includes('tunnel') || id.includes('link') || id.includes('service');
+  });
+  layers.forEach(l => {
+    if (l.type === 'line') {
+      try { map.setPaintProperty(l.id, 'line-color', PARAMS.roadColor); } catch(e){}
+      try { map.setPaintProperty(l.id, 'line-opacity', PARAMS.roadOpacity); } catch(e){}
+    }
+  });
+}
+
+function updateMapBuildingStyle() {
+  if (!map) return;
+  const layers = map.getStyle().layers.filter(l => (l.id || '').toLowerCase().includes('building'));
+  layers.forEach(l => {
+    if (l.type === 'fill') {
+      try { map.setPaintProperty(l.id, 'fill-color', PARAMS.buildingColor); } catch(e){}
+      try { map.setPaintProperty(l.id, 'fill-opacity', PARAMS.buildingOpacity); } catch(e){}
+    }
+    if (l.type === 'fill-extrusion') {
+      try { map.setPaintProperty(l.id, 'fill-extrusion-color', PARAMS.buildingColor); } catch(e){}
+      try { map.setPaintProperty(l.id, 'fill-extrusion-opacity', PARAMS.buildingOpacity); } catch(e){}
+    }
   });
 }
 
@@ -2574,6 +2715,8 @@ function updateProjectMaterial() {
         ch.material.color.setHex(PARAMS.projectColor);
         ch.material.transparent = (PARAMS.projectOpacity < 1.0);
         ch.material.opacity = PARAMS.projectOpacity;
+        ch.material.metalness = PARAMS.projectMetalness;
+        ch.material.roughness = PARAMS.projectRoughness;
         ch.material.needsUpdate = true;
       }
     });
@@ -2581,27 +2724,82 @@ function updateProjectMaterial() {
 }
 
 function setupSettingsPanel() {
-  const sliders = [
-    { id: 's-projectOpacity', param: 'projectOpacity', fmt: v => v.toFixed(2), cb: updateProjectMaterial },
-  ];
-  sliders.forEach(cfg => {
-    const el = document.getElementById(cfg.id);
+  function wire(id, param, fmt, cb, isColor) {
+    const el = document.getElementById(id);
     if (!el) return;
-    const valEl = document.getElementById('sv-' + cfg.id.slice(2));
-    el.addEventListener('input', () => {
-      const v = parseFloat(el.value);
-      PARAMS[cfg.param] = v;
-      if (valEl) valEl.textContent = cfg.fmt(v);
-      cfg.cb();
+    const valId = 'sv-' + id.slice(2);
+    const valEl = document.getElementById(valId);
+    if (isColor) {
+      el.addEventListener('input', e => {
+        PARAMS[param] = parseInt(e.target.value.slice(1), 16);
+        if (valEl) valEl.textContent = e.target.value.slice(1);
+        cb();
+        if (map) map.triggerRepaint();
+      });
+    } else {
+      el.addEventListener('input', () => {
+        const v = parseFloat(el.value);
+        PARAMS[param] = v;
+        if (valEl) valEl.textContent = fmt(v);
+        cb();
+        if (map) map.triggerRepaint();
+      });
+    }
+  }
+  function wireColorStr(id, param, cb) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const valId = 'sv-' + id.slice(2);
+    const valEl = document.getElementById(valId);
+    el.addEventListener('input', e => {
+      PARAMS[param] = e.target.value;
+      if (valEl) valEl.textContent = e.target.value.slice(1);
+      cb();
     });
-  });
+  }
+  const f2 = v => v.toFixed(2);
+  const f0 = v => v.toFixed(0) + '°';
 
-  const projColorEl = document.getElementById('s-projectColor');
-  if (projColorEl) projColorEl.addEventListener('input', (e) => {
-    PARAMS.projectColor = parseInt(e.target.value.slice(1), 16);
-    const v = document.getElementById('sv-projectColor'); if(v) v.textContent = e.target.value.slice(1);
-    updateProjectMaterial();
-  });
+  // PROJECT MATERIAL
+  wire('s-projectColor',    'projectColor',    null,   updateProjectMaterial, true);
+  wire('s-projectOpacity',  'projectOpacity',  f2,     updateProjectMaterial);
+  wire('s-projectMetalness','projectMetalness',f2,     updateProjectMaterial);
+  wire('s-projectRoughness','projectRoughness',f2,     updateProjectMaterial);
+
+  // SITE MODELS MATERIAL
+  wire('s-glbColor',     'otherGlbMaterialColor',    null, updateGlbMaterials, true);
+  wire('s-glbOpacity',   'otherGlbMaterialOpacity',  f2,   updateGlbMaterials);
+  wire('s-glbMetalness', 'otherGlbMaterialMetalness',f2,   updateGlbMaterials);
+  wire('s-glbRoughness', 'otherGlbMaterialRoughness',f2,   updateGlbMaterials);
+
+  // SUBWAY MATERIAL
+  wire('s-subwayColor',    'subwayMaterialColor',    null, updateSubwayMaterial, true);
+  wire('s-subwayOpacity',  'subwayMaterialOpacity',  f2,   updateSubwayMaterial);
+  wire('s-subwayMetalness','subwayMaterialMetalness',f2,   updateSubwayMaterial);
+  wire('s-subwayRoughness','subwayMaterialRoughness',f2,   updateSubwayMaterial);
+
+  // MAP BUILDINGS
+  wireColorStr('s-buildingColor', 'buildingColor', updateMapBuildingStyle);
+  wire('s-buildingOpacity', 'buildingOpacity', f2, updateMapBuildingStyle);
+
+  // MAP STREETS
+  wireColorStr('s-roadColor', 'roadColor', updateStreetStyle);
+  wire('s-roadOpacity', 'roadOpacity', f2, updateStreetStyle);
+
+  // MAP WATER
+  wireColorStr('s-waterColor', 'waterColor', updateWaterStyle);
+  wire('s-waterOpacity', 'waterOpacity', f2, updateWaterStyle);
+
+  // DIRECTIONAL LIGHT
+  wire('s-dirColor',    'dirLightColor',    null, updateLighting, true);
+  wire('s-dirIntensity','dirLightIntensity',f2,   updateLighting);
+  wire('s-dirAzimuth',  'dirLightAzimuth',  f0,   updateLighting);
+  wire('s-dirAltitude', 'dirLightAltitude', f0,   updateLighting);
+
+  // ENV LIGHT
+  wire('s-ambColor',     'ambientColor',   null, updateLighting, true);
+  wire('s-ambIntensity', 'ambientIntensity',f2,  updateLighting);
+  wire('s-hemiIntensity','hemiIntensity',   f2,  updateLighting);
 }
 
 async function main(){
