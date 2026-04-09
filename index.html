@@ -20,11 +20,11 @@
    ══════════════════════════════════════ */
 :root {
   /* Monochrome hierarchy — tactical data viz */
-  --t1: rgba(255,255,255,0.80);
-  --t2: rgba(255,255,255,0.45);
-  --t3: rgba(255,255,255,0.22);
-  --t4: rgba(255,255,255,0.10);
-  --t5: rgba(255,255,255,0.04);
+  --t1: rgba(255,255,255,1.00);
+  --t2: rgba(255,255,255,0.90);
+  --t3: rgba(255,255,255,0.70);
+  --t4: rgba(255,255,255,0.50);
+  --t5: rgba(255,255,255,0.30);
   /* Rules */
   --ln1: rgba(255,255,255,0.04);
   --ln2: rgba(255,255,255,0.07);
@@ -210,6 +210,21 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="dr"><span class="l" style="color:var(--c-bus)">BUSES</span><span class="v" id="ct-bus">0</span></div>
     <div class="dr"><span class="l">API</span><span class="v" id="ct-api">INIT</span></div></div>
 
+  <div class="hp" id="power-legend" style="display:none;font-size:9px;line-height:1.6;color:var(--t2)"><div class="hp-t"><div class="sq on"></div>POWER GRID LEGEND<div style="flex:1"></div><span style="color:var(--t5)">06</span></div>
+    <div style="margin-bottom:6px;color:var(--t1)">ENERGY SOURCES</div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#ffaa00;border-radius:4px;margin-right:6px"></span><span class="l">SOLAR</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#00e5ff;border-radius:4px;margin-right:6px"></span><span class="l">WIND</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#0088ff;border-radius:4px;margin-right:6px"></span><span class="l">HYDRO</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#00ff66;border-radius:4px;margin-right:6px"></span><span class="l">NUCLEAR</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#ff3300;border-radius:4px;margin-right:6px"></span><span class="l">GAS / OIL</span></div>
+    <div class="dr" style="margin-bottom:6px"><span style="display:inline-block;width:8px;height:8px;background:#cc00ff;border-radius:4px;margin-right:6px"></span><span class="l">BIOMASS</span></div>
+    
+    <div style="margin-bottom:6px;color:var(--t1)">INFRASTRUCTURE</div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:12px;height:2px;background:#00e5ff;margin-right:4px"></span><span class="l">TRANSMISSION LINE</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:12px;height:1px;background:#00aaff;margin-right:4px"></span><span class="l">MINOR LINE</span></div>
+    <div class="dr" style="margin-bottom:0px"><span style="display:inline-block;width:10px;height:10px;background:#111111;border:1px solid #ff0055;margin-right:5px"></span><span class="l">SUBSTATION</span></div>
+  </div>
+
   <div class="hp"><div class="hp-t"><div class="sq on"></div>CLIMATE<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
     <div class="dr"><span class="l">LOCAL TIME</span><span class="v hi" id="v-local-time" style="color:var(--t1)">--:--:--</span></div>
     <div class="dr"><span class="l">TEMP</span><span class="v hi" id="v-temp">72.4°F</span></div>
@@ -218,18 +233,11 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="dr"><span class="l">SOLAR</span><span class="v hi" id="v-solar">842 W/m²</span></div>
     <div class="mbars" id="temp-bars"></div></div>
 
-  <div class="hp"><div class="hp-t"><div class="sq on"></div>SUN PATH<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
-    <div class="sun-row"><div style="flex:1"><div class="sun-label">MONTH</div><select id="sun-month" class="sun-input"><option value="0">JAN</option><option value="1">FEB</option><option value="2">MAR</option><option value="3" selected>APR</option><option value="4">MAY</option><option value="5">JUN</option><option value="6">JUL</option><option value="7">AUG</option><option value="8">SEP</option><option value="9">OCT</option><option value="10">NOV</option><option value="11">DEC</option></select></div>
-    <div style="flex:1"><div class="sun-label">DAY</div><input type="number" id="sun-day" class="sun-input" value="15" min="1" max="31"></div></div>
-    <div class="sun-row"><div style="flex:1"><div class="sun-label">HOUR</div><input type="range" id="sun-hour" min="0" max="23" value="14" style="width:100%;accent-color:rgba(255,255,255,.3)"></div>
-    <div style="width:40px;text-align:right"><span id="sun-hour-val" style="font-size:9px;color:var(--t1)">14:00</span></div></div>
-    <div class="dr" style="margin-top:4px"><span class="l">AZIMUTH</span><span class="v hi" id="sun-az">210°</span></div>
-    <div class="dr"><span class="l">ALTITUDE</span><span class="v hi" id="sun-alt">52°</span></div>
-    <div class="lb" data-layer="shadows" onclick="toggleShadows(this)" style="margin-top:8px"><div class="ind"></div>SHADOWS</div></div>
-
-  <div class="hp"><div class="hp-t"><div class="sq"></div>GEOMETRY<div style="flex:1"></div><span style="color:var(--t5)">04</span></div>
-    <div id="glb-zone">DROP .GLB // CLICK UPLOAD</div><input type="file" id="glb-input" accept=".glb,.gltf">
-    <div id="glb-status" style="font-size:8px;color:var(--t3);margin-top:4px;letter-spacing:1px"></div></div>
+  <div class="hp"><div class="hp-t"><div class="sq"></div>PROJECT DATASHEET<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
+    <div id="desc-title" style="color:var(--t1);font-size:9px;text-transform:uppercase;margin-bottom:4px;letter-spacing:1px;font-weight:bold;">filename.glb</div>
+    <div id="desc-text" style="color:var(--t3);font-size:8px;line-height:1.4;margin-bottom:6px;letter-spacing:0.5px;">Placeholder description: Architectural intent, material metadata, and structural specs will be populated here.</div>
+    <a id="desc-link" href="#" target="_blank" style="color:var(--c-plane);font-size:8px;text-decoration:none;letter-spacing:1px;border-bottom:1px solid var(--c-plane);padding-bottom:1px;">VIEW SOURCE DATASHEET &#8599;</a>
+  </div>
 </div>
 
 <div id="right-col">
@@ -239,9 +247,10 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="lb on" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
     <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
     <div class="lb on" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
-    <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div></div>
+    <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div>
+    <div class="lb" data-layer="powergrid" onclick="toggleLayer(this)"><div class="ind"></div>POWER GRID</div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
-    <div class="vr"><div class="vb on" data-view="perspective" onclick="setView('perspective',this)">PERSP</div><div class="vb" data-view="top" onclick="setView('top',this)">TOP</div><div class="vb" data-view="site" onclick="setView('site',this)">SITE</div><div class="vb" data-view="orbit" onclick="setView('orbit',this)">ORBIT</div></div></div>
+    <div class="vr"><div class="vb on" data-view="perspective" onclick="setView('perspective',this)">PERSP</div><div class="vb" data-view="top" onclick="setView('top',this)">TOP</div><div class="vb" data-view="site" onclick="setView('site',this)">SITE</div><div class="vb" data-view="1stp" onclick="setView('1stp',this)">1ST P.</div></div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>READOUT<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
     <div class="dr"><span class="l">ZOOM</span><span class="v hi" id="v-zoom">16.0</span></div>
     <div class="dr"><span class="l">PITCH</span><span class="v" id="v-pitch">62°</span></div>
@@ -264,7 +273,6 @@ svg#glitch-filters{position:absolute;width:0;height:0}
       </select></div>
     </div>
     <div class="lb" id="btn-run-analysis" style="margin-top:8px;justify-content:center;border:1px solid var(--t4)"><div class="ind" style="display:none"></div>RUN ANALYSIS</div>
-    <div class="lb" id="btn-toggle-solar" onclick="toggleSolarLayer()" style="margin-top:4px;justify-content:center;border:1px solid var(--t4)"><div class="ind"></div>SHOW SOLAR HEATMAP</div>
     <div id="analysis-progress" style="display:none;margin-top:6px;">
         <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--t4);margin-bottom:2px"><span>GPU COMPUTING...</span><span id="progress-pct">0%</span></div>
         <div style="width:100%;height:4px;background:var(--ln2)"><div id="progress-bar" style="height:100%;width:0%;background:var(--t2)"></div></div>
@@ -278,6 +286,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
         </div>
     </div>
   </div>
+
 </div>
 
 <div id="radar-wrap" style="bottom:auto;top:320px;right:250px;"><canvas id="radar-canvas" width="130" height="130"></canvas></div>
@@ -285,56 +294,10 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 <div id="settings-panel">
   <div class="hp-t" style="padding-bottom:6px;border-bottom:1px solid var(--ln1)">· PARAMETERS<div style="flex:1"></div><span style="cursor:pointer;color:var(--t4);font-size:9px" onclick="toggleSettings()">×</span></div>
   <div class="sp-section open">
-    <div class="sp-header" onclick="toggleSection(this)">▾ MATERIALS</div>
+    <div class="sp-header" onclick="toggleSection(this)">▾ PROJECT MATERIAL</div>
     <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">BLDG OPACITY</span><input type="range" class="sp-slider" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.20"><span class="sp-val" id="sv-buildingOpacity">0.20</span></div>
-      <div class="sp-row"><span class="sp-label">GLB OPACITY</span><input type="range" class="sp-slider" id="s-glbOpacity" min="0" max="1" step="0.01" value="0.45"><span class="sp-val" id="sv-glbOpacity">0.45</span></div>
-      <div class="sp-row"><span class="sp-label">SUBWAY CLR</span><input type="color" class="sp-color" id="s-subwayColor" value="#aa88ff"><span class="sp-val" id="sv-subwayColor">aa88ff</span></div>
-      <div class="sp-row"><span class="sp-label">SUBWAY α</span><input type="range" class="sp-slider" id="s-subwayOpacity" min="0" max="1" step="0.01" value="0.80"><span class="sp-val" id="sv-subwayOpacity">0.80</span></div>
-      <div class="sp-row"><span class="sp-label">CAR COLOR</span><input type="color" class="sp-color" id="s-carColor" value="#ff2222"><span class="sp-val" id="sv-carColor">ff2222</span></div>
-    </div>
-  </div>
-  <div class="sp-section">
-    <div class="sp-header" onclick="toggleSection(this)">▸ MAP</div>
-    <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">WATER CLR</span><input type="color" class="sp-color" id="s-waterColor" value="#0a0a12"><span class="sp-val" id="sv-waterColor">0a0a12</span></div>
-      <div class="sp-row"><span class="sp-label">WATER α</span><input type="range" class="sp-slider" id="s-waterOpacity" min="0" max="1" step="0.01" value="0.12"><span class="sp-val" id="sv-waterOpacity">0.12</span></div>
-    </div>
-  </div>
-  <div class="sp-section">
-    <div class="sp-header" onclick="toggleSection(this)">▸ GRID</div>
-    <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">CELL SIZE</span><input type="range" class="sp-slider" id="s-gridCellSize" min="100" max="5000" step="100" value="2000"><span class="sp-val" id="sv-gridCellSize">2000</span></div>
-      <div class="sp-row"><span class="sp-label">LINE α</span><input type="range" class="sp-slider" id="s-gridLineAlpha" min="0" max="1" step="0.01" value="0.10"><span class="sp-val" id="sv-gridLineAlpha">0.10</span></div>
-    </div>
-  </div>
-  <div class="sp-section">
-    <div class="sp-header" onclick="toggleSection(this)">▸ TAGS</div>
-    <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">PYRAMID</span><input type="range" class="sp-slider" id="s-culturalPyramidSize" min="1" max="30" step="1" value="20"><span class="sp-val" id="sv-culturalPyramidSize">20</span></div>
-      <div class="sp-row"><span class="sp-label">LINE W</span><input type="range" class="sp-slider" id="s-culturalLineWidth" min="0.1" max="5" step="0.1" value="1.0"><span class="sp-val" id="sv-culturalLineWidth">1.0</span></div>
-      <div class="sp-row"><span class="sp-label">TEXT SIZE</span><input type="range" class="sp-slider" id="s-culturalTextSize" min="6" max="48" step="1" value="32"><span class="sp-val" id="sv-culturalTextSize">32</span></div>
-    </div>
-  </div>
-  <div class="sp-section">
-    <div class="sp-header" onclick="toggleSection(this)">▸ TRANSIT</div>
-    <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">ICON SCALE</span><input type="range" class="sp-slider" id="s-transitIconScale" min="0.1" max="5" step="0.1" value="1.0"><span class="sp-val" id="sv-transitIconScale">1.0</span></div>
-    </div>
-  </div>
-  <div class="sp-section">
-    <div class="sp-header" onclick="toggleSection(this)">▸ LIGHTING</div>
-    <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="range" class="sp-slider" id="s-ambientIntensity" min="0" max="2" step="0.05" value="0.45"><span class="sp-val" id="sv-ambientIntensity">0.45</span></div>
-      <div class="sp-row"><span class="sp-label">DIRECT</span><input type="range" class="sp-slider" id="s-dirLightIntensity" min="0" max="2" step="0.05" value="0.65"><span class="sp-val" id="sv-dirLightIntensity">0.65</span></div>
-    </div>
-  </div>
-  <div class="sp-section">
-    <div class="sp-header" onclick="toggleSection(this)">▸ VIGNETTE</div>
-    <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">INNER</span><input type="range" class="sp-slider" id="s-vigStart" min="0" max="100" step="1" value="35"><span class="sp-val" id="sv-vigStart">35%</span></div>
-      <div class="sp-row"><span class="sp-label">MID</span><input type="range" class="sp-slider" id="s-vigMid" min="0" max="100" step="1" value="60"><span class="sp-val" id="sv-vigMid">60%</span></div>
-      <div class="sp-row"><span class="sp-label">OUTER</span><input type="range" class="sp-slider" id="s-vigEnd" min="0" max="100" step="1" value="88"><span class="sp-val" id="sv-vigEnd">88%</span></div>
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-projectColor" value="#ffffff"><span class="sp-val" id="sv-projectColor">ffffff</span></div>
+      <div class="sp-row"><span class="sp-label">OPACITY</span><input type="range" class="sp-slider" id="s-projectOpacity" min="0" max="1" step="0.01" value="1.00"><span class="sp-val" id="sv-projectOpacity">1.00</span></div>
     </div>
   </div>
 </div>
@@ -351,7 +314,6 @@ svg#glitch-filters{position:absolute;width:0;height:0}
   </div>
 </div>
 <div class="dt" style="top:65px;left:50%;transform:translateX(-50%)"><span style="border:1px solid var(--ln2);padding:1px 8px"><span id="heading-val" style="color:var(--t2)">295</span></span></div>
-<div id="nav-btns"><div class="nb" onclick="resetCamera()">⌂</div><div class="nb" onclick="map&&map.zoomIn()">+</div><div class="nb" onclick="map&&map.zoomOut()">−</div><div class="nb" onclick="toggleSettings()" title="Settings [S]" style="margin-top:4px;font-size:8px">⚙</div></div>
 <div id="status-row"><span>SECTOR: HY-WEST 29TH-30TH</span><span>MODE: OBSERVATION</span><span>40.7538 / -74.0063</span></div>
 <div id="bottom-strip"><div id="coords">LAT <span class="v" id="c-lat">40.7538</span> &ensp;LON <span class="v" id="c-lon">-74.0063</span> &ensp;ZOOM <span class="v" id="c-zoom">16.0</span></div><div style="font-size:8px;color:var(--t4);letter-spacing:2px">MAPTILER LIVE</div></div>
 </div>
@@ -365,7 +327,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@liveblocks/client@3.
 const PARAMS = {
   // Material
   buildingColor: 0xffffff,
-  buildingOpacity: 0.20,
+  buildingOpacity: 0.50,
   glbColor: 0xffffff,
   glbOpacity: 0.60,
   glbRoughness: 0.3,
@@ -379,16 +341,16 @@ const PARAMS = {
   projectEmissive: 0x1a1a2e,
   projectOpacity: 0.90,
   // Light
-  ambientIntensity: 0.45,
-  dirLightIntensity: 0.65,
+  ambientIntensity: 0.85,
+  dirLightIntensity: 1.25,
   // Map
   backgroundFill: '#050506',
   landFill: '#060608',
   landOpacity: 0.65,
   roadColor: '#161620',
   roadOpacity: 0.5,
-  waterColor: '#0a0a12',
-  waterOpacity: 0.12,
+  waterColor: '#666666',
+  waterOpacity: 0.40,
   gridOpacity: 0.08,
   gridSize: 0.004,
   gridCount: 30,
@@ -523,16 +485,8 @@ function calcSun(month,day,hour,lat){
   return{alt:Math.max(0,alt),az};
 }
 function updateSun(){
-  const m=+document.getElementById('sun-month').value,d=+document.getElementById('sun-day').value||15,h=+document.getElementById('sun-hour').value;
-  document.getElementById('sun-hour-val').textContent=String(h).padStart(2,'0')+':00';
-  const s=calcSun(m,d,h,SITE.lat);
-  document.getElementById('sun-az').textContent=Math.round(s.az)+'°';
-  document.getElementById('sun-alt').textContent=Math.round(s.alt)+'°';
-  if(map)map.setLight({anchor:'map',color:'#ffffff',intensity:s.alt>0?0.3+s.alt/90*0.5:0.05,position:[1.5,s.az,Math.max(5,s.alt)]});
+  // Sun Path UI was removed, ignoring calculations.
 }
-document.getElementById('sun-month').onchange=updateSun;
-document.getElementById('sun-day').onchange=updateSun;
-document.getElementById('sun-hour').oninput=updateSun;
 
 /* ═══ STYLE ═══ */
 function cleanStyle(s){
@@ -557,15 +511,28 @@ function cleanStyle(s){
 
 /* ═══ MAP ═══ */
 let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
-let layerState={buildings:true,transit:true,grid:true,glb:true,scanlines:true,'site-marker':true};
+let firstPersonActive=false, fpKeys={w:false,a:false,s:false,d:false};
+let layerState={buildings:true,transit:true,grid:true,glb:true,scanlines:true,'site-marker':true,powergrid:false};
 let glbCustomLayer=null;
+let powerPopup=null;
 let vectorSourceName='openmaptiles';
+
+window.addEventListener('keydown', e => {
+  if(!firstPersonActive) return;
+  const k = e.key.toLowerCase();
+  if(fpKeys.hasOwnProperty(k)) fpKeys[k] = true;
+});
+window.addEventListener('keyup', e => {
+  if(!firstPersonActive) return;
+  const k = e.key.toLowerCase();
+  if(fpKeys.hasOwnProperty(k)) fpKeys[k] = false;
+});
 
 async function initMap(){
   try{
     const res=await fetch(`${VERCEL_API}/api/get-style`);if(!res.ok)throw new Error(`API ${res.status}`);
     let style=await res.json();style=cleanStyle(style);
-    map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:75});
+    map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:85});
     window.map = map;
     map.on('load',()=>{
 
@@ -854,23 +821,11 @@ function loadAllGLBs(){
       this.camera = new THREE.Camera();
       this.scene = new THREE.Scene();
       this.scene.add(new THREE.AmbientLight(0xffffff, PARAMS.ambientIntensity));
-      const dl = new THREE.DirectionalLight(0xffffff, PARAMS.dirLightIntensity);
-      dl.position.set(0, -70, 100);
+      
+      const hl = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+      this.scene.add(hl);
 
-      // Configure shadow properties for the high-detail models
-      dl.castShadow = shadowsEnabled;
-      dl.shadow.mapSize.width = 2048;
-      dl.shadow.mapSize.height = 2048;
-      dl.shadow.camera.near = 0.5;
-      dl.shadow.camera.far = 3000;
-      dl.shadow.camera.left = -800;
-      dl.shadow.camera.right = 800;
-      dl.shadow.camera.top = 800;
-      dl.shadow.camera.bottom = -800;
-      dl.shadow.bias = -0.0005;
 
-      this.dirLight = dl;
-      this.scene.add(dl);
 
       this.renderer = new THREE.WebGLRenderer({
         canvas: m.getCanvas(),
@@ -1026,6 +981,77 @@ function loadAllGLBs(){
       map.triggerRepaint();
     }
   };
+  
+  // Custom Power Grid Overlay Pipeline
+  powerPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+  map.addSource('power-grid-source', { type: 'geojson', data: 'nyc_power_grid.geojson' });
+
+  // Heatmaps
+  map.addLayer({
+    id: 'power-heatmap-fossil', type: 'heatmap', source: 'power-grid-source',
+    filter: ['all', ['==', ['geometry-type'], 'Point'], ['in', ['get', 'source'], ['literal', ['gas', 'oil', 'coal']]]],
+    layout: { visibility: 'none' },
+    paint: {
+      'heatmap-weight': 1, 'heatmap-intensity': 1,
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(0,0,0,0)', 0.2, '#660000', 0.6, '#ff3300', 1, '#ffcc00'],
+      'heatmap-radius': 35, 'heatmap-opacity': 0.7
+    }
+  });
+
+  map.addLayer({
+    id: 'power-heatmap-renewable', type: 'heatmap', source: 'power-grid-source',
+    filter: ['all', ['==', ['geometry-type'], 'Point'], ['in', ['get', 'source'], ['literal', ['solar', 'wind', 'hydro', 'biomass', 'nuclear']]]],
+    layout: { visibility: 'none' },
+    paint: {
+      'heatmap-weight': 1, 'heatmap-intensity': 1,
+      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(0,0,0,0)', 0.2, '#001a33', 0.6, '#0088ff', 1, '#00e5ff'],
+      'heatmap-radius': 30, 'heatmap-opacity': 0.7
+    }
+  });
+
+  map.addLayer({
+    id: 'power-substations', type: 'fill', source: 'power-grid-source',
+    filter: ['==', ['geometry-type'], 'Polygon'], layout: { visibility: 'none' },
+    paint: { 'fill-color': '#111111', 'fill-opacity': 0.8, 'fill-outline-color': '#ff0055' }
+  });
+
+  map.addLayer({
+    id: 'power-lines-blur', type: 'line', source: 'power-grid-source',
+    filter: ['==', ['geometry-type'], 'LineString'], layout: { visibility: 'none', 'line-join': 'round', 'line-cap': 'round' },
+    paint: {
+      'line-color': ['case', ['==', ['get', 'power'], 'minor_line'], '#00aaff', '#00e5ff'],
+      'line-width': ['case', ['==', ['get', 'power'], 'minor_line'], 2, 6],
+      'line-blur': ['case', ['==', ['get', 'power'], 'minor_line'], 2, 6],
+      'line-opacity': 0.7
+    }
+  });
+
+  map.addLayer({
+    id: 'power-lines-core', type: 'line', source: 'power-grid-source',
+    filter: ['==', ['geometry-type'], 'LineString'], layout: { visibility: 'none', 'line-join': 'round', 'line-cap': 'round' },
+    paint: { 'line-color': '#ffffff', 'line-width': ['case', ['==', ['get', 'power'], 'minor_line'], 1.0, 3.0], 'line-opacity': 1.0 }
+  });
+
+  const powerColorMatch = ['match', ['get', 'source'], 'solar', '#ffaa00', 'wind', '#00e5ff', 'nuclear', '#00ff66', 'gas', '#ff3300', 'oil', '#ff1100', 'hydro', '#0088ff', 'biomass', '#cc00ff', '#ffffff'];
+
+  map.addLayer({
+    id: 'power-nodes-blur', type: 'circle', source: 'power-grid-source',
+    filter: ['==', ['geometry-type'], 'Point'], layout: { visibility: 'none' },
+    paint: { 'circle-color': powerColorMatch, 'circle-radius': 16, 'circle-blur': 2.0, 'circle-opacity': 0.8 }
+  });
+
+  map.addLayer({
+    id: 'power-nodes-core', type: 'circle', source: 'power-grid-source',
+    filter: ['==', ['geometry-type'], 'Point'], layout: { visibility: 'none' },
+    paint: { 'circle-color': '#ffffff', 'circle-radius': 4, 'circle-opacity': 1 }
+  });
+
+  const popHtml = p => `<div style="color:#000;font-family:'Fragment Mono';font-size:10px;line-height:1.4;text-transform:uppercase"><b>${p.name||'Power Asset'}</b><br>Type: ${p.power}<br>Source: ${p.source}<br>Volt: ${p.voltage}<br>Out: ${p.output}</div>`;
+  ['power-nodes-core', 'power-lines-core'].forEach(l => {
+    map.on('mouseenter', l, e => { map.getCanvas().style.cursor = 'pointer'; powerPopup.setLngLat(e.lngLat).setHTML(popHtml(e.features[0].properties)).addTo(map); });
+    map.on('mouseleave', l, () => { map.getCanvas().style.cursor = ''; powerPopup.remove(); });
+  });
+
   map.addLayer(glbCustomLayer);
 
   // Load each GLB using GLTFLoader.load (handles binary correctly)
@@ -1038,14 +1064,23 @@ function loadAllGLBs(){
         if (ch.isMesh) {
           ch.castShadow = shadowsEnabled;
           ch.receiveShadow = shadowsEnabled;
-          ch.material = new THREE.MeshStandardMaterial({
-            color: isSubway ? PARAMS.subwayMaterialColor : PARAMS.otherGlbMaterialColor,
-            roughness: PARAMS.glbRoughness,
-            metalness: PARAMS.glbMetalness,
-            transparent: true,
-            opacity: isSubway ? PARAMS.subwayMaterialOpacity : PARAMS.otherGlbMaterialOpacity,
-            side: THREE.DoubleSide
-          });
+          if (isSubway) {
+            ch.material = new THREE.MeshStandardMaterial({
+              color: PARAMS.transitGroupColors.subway,
+              transparent: false,
+              opacity: 1.0,
+              side: THREE.DoubleSide
+            });
+          } else {
+            ch.material = new THREE.MeshStandardMaterial({
+              color: 0xffffff,
+              transparent: true,
+              opacity: 0.35,
+              roughness: 0.8,
+              metalness: 0.1,
+              side: THREE.DoubleSide
+            });
+          }
         }
       });
       glbCustomLayer.scene.add(model);
@@ -1058,18 +1093,29 @@ function loadAllGLBs(){
     });
   });
 
-  // Load Active Project
-  loadActiveProject('projects_glbs/G11_hyperobject.glb');
+  // Active Project loading is now handled asynchronously by the projects.json fetch logic below.
 }
 
 let activeProjectMesh = null;
-let activeProjectOriginalMaterial = null;
-const PROJECT_FILES = [
-  {name:'G11_HYPEROBJECT', file:'projects_glbs/G11_hyperobject.glb'},
-  {name:'LL_SPIRE', file:'projects_glbs/jl_massing_3.glb'}, // Placeholders
-  {name:'FUTURE_PROJ_2', file:'projects_glbs/G11_hyperobject.glb'}
+let PROJECT_FILES = [
+  {name:'G11_HYPEROBJECT', file:'projects_glbs/G11_HYPEROBJECT.glb', desc:'Placeholder description for G11_HYPEROBJECT. Focus: High-density mixed-use development and sustainable climate infrastructure integration.', link:'https://example.com/g11'},
+  {name:'07_SPIRE', file:'projects_glbs/07_SPIRE.glb', desc:'Placeholder description for 07_SPIRE. Focus: Vertical urban transit linkage and zero-carbon tower infrastructure.', link:'https://example.com/07-spire'}
 ];
 let currentProjectIndex = 0;
+
+// Dynamically read from the local JSON registry if the user generates one
+fetch('projects_glbs/projects.json').then(r => {
+  if(!r.ok) throw new Error("No projects.json index found, using static fallback.");
+  return r.json();
+}).then(data => {
+  if(data && data.length > 0) {
+    PROJECT_FILES = data;
+  }
+  updateProjectSelection();
+}).catch(e => {
+  console.log(e.message);
+  updateProjectSelection();
+});
 
 // Preview Scene Setup
 let previewScene = new THREE.Scene();
@@ -1098,9 +1144,14 @@ function updatePreviewLoop() {
   requestAnimationFrame(updatePreviewLoop);
 }
 
+let currentLoadId = 0;
+
 function loadActiveProject(filepath) {
+  const loadId = ++currentLoadId;
+
   if (activeProjectMesh && glbCustomLayer && glbCustomLayer.scene) {
     glbCustomLayer.scene.remove(activeProjectMesh);
+    activeProjectMesh = null;
   }
   if (previewModel && previewScene) {
     previewScene.remove(previewModel);
@@ -1109,21 +1160,21 @@ function loadActiveProject(filepath) {
 
   const loader = new THREE.GLTFLoader();
   loader.load(filepath, (gltf) => {
+    if (loadId !== currentLoadId) return; // Prevent async race-conditions overlapping meshes
+
     activeProjectMesh = gltf.scene;
-    activeProjectOriginalMaterial = new THREE.MeshStandardMaterial({
-      color: PARAMS.projectColor,
-      emissive: PARAMS.projectEmissive,
-      roughness: 0.15,
-      metalness: 0.0,
-      transparent: true,
-      opacity: PARAMS.projectOpacity,
-      side: THREE.DoubleSide
-    });
     activeProjectMesh.traverse(ch => {
       if (ch.isMesh) {
         ch.castShadow = shadowsEnabled;
         ch.receiveShadow = shadowsEnabled;
-        ch.material = activeProjectOriginalMaterial;
+        ch.material = new THREE.MeshStandardMaterial({
+          color: PARAMS.projectColor,
+          transparent: (PARAMS.projectOpacity < 1.0),
+          opacity: PARAMS.projectOpacity,
+          roughness: 0.5,
+          metalness: 0.0,
+          side: THREE.DoubleSide
+        });
       }
     });
     if (glbCustomLayer && glbCustomLayer.scene) {
@@ -1135,10 +1186,11 @@ function loadActiveProject(filepath) {
     previewModel.traverse(ch => {
       if (ch.isMesh) {
         ch.material = new THREE.MeshBasicMaterial({
-          color: 0x4da8ff, // Brand color or generic cyan
+          color: 0xffffff,
           wireframe: true,
+          wireframeLinewidth: 1,
           transparent: true,
-          opacity: 0.6
+          opacity: 0.3
         });
       }
     });
@@ -1167,8 +1219,22 @@ function prevProject() {
 }
 
 function updateProjectSelection() {
+  if (PROJECT_FILES.length === 0) return;
   const p = PROJECT_FILES[currentProjectIndex];
   document.getElementById('project-name').textContent = p.name;
+  
+  const titleEl = document.getElementById('desc-title');
+  if (titleEl) titleEl.textContent = p.file.split('/').pop();
+  
+  const textEl = document.getElementById('desc-text');
+  if (textEl) textEl.textContent = p.desc || 'Placeholder description.';
+  
+  const linkEl = document.getElementById('desc-link');
+  if (linkEl) {
+    linkEl.href = p.link || '#';
+    linkEl.style.display = p.link ? 'inline-block' : 'none';
+  }
+
   loadActiveProject(p.file);
 }
 
@@ -1177,16 +1243,7 @@ window.prevProject = prevProject;
 
 /* Manual upload */
 function setupGLB(){
-  const z=document.getElementById('glb-zone'),inp=document.getElementById('glb-input'),st=document.getElementById('glb-status');
-  z.onclick=()=>inp.click();z.ondragover=e=>{e.preventDefault()};
-  z.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files.length)doUp(e.dataTransfer.files[0])};
-  inp.onchange=e=>{if(e.target.files.length)doUp(e.target.files[0])};
-  function doUp(f){st.textContent='> LOADING '+f.name;
-    const r=new FileReader();r.onload=function(e){new THREE.GLTFLoader().parse(e.target.result,'',gltf=>{
-      const m=gltf.scene;m.traverse(ch=>{if(ch.isMesh){ch.castShadow=shadowsEnabled;ch.receiveShadow=shadowsEnabled;ch.material=new THREE.MeshStandardMaterial({color:PARAMS.glbColor,roughness:PARAMS.glbRoughness,metalness:PARAMS.glbMetalness,transparent:true,opacity:PARAMS.glbOpacity,side:THREE.DoubleSide})}});
-      if(glbCustomLayer&&glbCustomLayer.scene)glbCustomLayer.scene.add(m);
-      st.textContent='> LOADED '+f.name;z.textContent=f.name.toUpperCase();
-    })};r.readAsArrayBuffer(f);}
+  // The GLB upload feature has been replaced by the Project Datasheet logic
 }
 
 /* ═══ TRAFFIC SIMULATOR (INJECTED) ═══ */
@@ -2253,18 +2310,120 @@ function toggleLayer(el){
   if(l==='grid'&&glbCustomLayer&&glbCustomLayer.gridHelper){glbCustomLayer.gridHelper.visible=layerState[l];if(map)map.triggerRepaint();}
   if(l==='glb'&&map&&map.getLayer('glb-models'))map.setLayoutProperty('glb-models','visibility',layerState[l]?'visible':'none');
   if(l==='scanlines')document.getElementById('scanlines').style.display=layerState[l]?'block':'none';
+  if(l==='powergrid'&&map){
+    const v=layerState[l]?'visible':'none';
+    ['power-heatmap-fossil','power-heatmap-renewable','power-substations','power-lines-blur','power-lines-core','power-nodes-blur','power-nodes-core'].forEach(id=>{if(map.getLayer(id))map.setLayoutProperty(id,'visibility',v)});
+    document.getElementById('power-legend').style.display = layerState[l] ? 'block' : 'none';
+  }
   if(l==='site-marker'){
     if(siteMarkerMesh) siteMarkerMesh.visible = layerState[l];
     if(map) map.triggerRepaint();
   }
 }
 
-function setView(type,el){autoOrbit=false;document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));if(el)el.classList.add('on');
-const v={perspective:{center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18},top:{center:[SITE.lng,SITE.lat],zoom:17,pitch:0,bearing:0},site:{center:[SITE.lng,SITE.lat],zoom:18,pitch:55,bearing:30}};
-if(type==='orbit'){autoOrbit=true;orbitStart=performance.now();return}
-if(v[type]&&map)map.flyTo({...v[type],duration:2000,essential:true})}
+function setView(type,el){autoOrbit=false;firstPersonActive=false;document.querySelectorAll('.vb').forEach(b=>b.classList.remove('on'));if(el)el.classList.add('on');
+const v={perspective:{center:[SITE.lng,SITE.lat],zoom:16.2,pitch:62,bearing:-18},top:{center:[SITE.lng,SITE.lat],zoom:17,pitch:0,bearing:0},site:{center:[SITE.lng,SITE.lat],zoom:18,pitch:55,bearing:30},'1stp':{zoom:22,pitch:85}};
+if(type==='1stp'){
+  firstPersonActive=true;
+  if(map){
+    map.transform.fov = 54;
+    // Pre-calculate to jump directly to 2m height instantly
+    const tr = map.transform;
+    const dPixels = (tr.height / 2) / Math.tan(tr.fov / 2);
+    const metersPerMercator = Math.cos(v['1stp'].center[1] * Math.PI / 180) * 40075016.686;
+    const targetZMerc = 2.0 / metersPerMercator;
+    const pitchRad = v['1stp'].pitch * Math.PI / 180;
+    const newScale = (dPixels * Math.cos(pitchRad)) / targetZMerc;
+    v['1stp'].zoom = Math.log2(newScale / 512);
+
+    map.flyTo({...v['1stp'],duration:2000,essential:true});
+  }
+  return;
+}
+if(v[type]&&map){
+  map.transform.fov = 37.5;
+  map.flyTo({...v[type],duration:2000,essential:true});
+}}
 function resetCamera(){setView('perspective',document.querySelector('[data-view="perspective"]'))}
-function doOrbit(){if(!autoOrbit||!map)return;map.setBearing(-18+(performance.now()-orbitStart)/1000*8)}
+
+function doFirstPersonMovement() {
+  if (!firstPersonActive || !map) return;
+  const speed = 0.00002;
+  let dx = 0, dy = 0;
+  if(fpKeys.w) dy += 1;
+  if(fpKeys.s) dy -= 1;
+  if(fpKeys.a) dx -= 1;
+  if(fpKeys.d) dx += 1;
+  if(dx===0 && dy===0) return;
+  
+  const b = map.getBearing() * Math.PI/180;
+  const sinB = Math.sin(b), cosB = Math.cos(b);
+  const moveN = dy * cosB - dx * sinB;
+  const moveE = dy * sinB + dx * cosB;
+  
+  const c = map.getCenter();
+  map.setCenter([c.lng + moveE * speed * 2.0, c.lat + moveN * speed * 2.0]);
+}
+
+let isFPDragging = false;
+let fpLastMouse = { x: 0, y: 0 };
+window.addEventListener('mousedown', e => {
+  if (firstPersonActive && e.button === 0 && e.target.closest('#map')) {
+    isFPDragging = true;
+    fpLastMouse = { x: e.clientX, y: e.clientY };
+    if(map) map.dragPan.disable();
+  }
+});
+window.addEventListener('mousemove', e => {
+  if (firstPersonActive && isFPDragging && map) {
+    const dx = e.clientX - fpLastMouse.x;
+    const dy = e.clientY - fpLastMouse.y;
+    fpLastMouse = { x: e.clientX, y: e.clientY };
+
+    const tr = map.transform;
+    const center = map.getCenter();
+    const mc = maplibregl.MercatorCoordinate.fromLngLat(center, 0);
+
+    const oldPitch = tr.pitch * Math.PI / 180;
+    const oldBearing = tr.bearing * Math.PI / 180;
+    const dPixels = (tr.height / 2) / Math.tan(tr.fov / 2);
+    const dMerc = dPixels / (512 * tr.scale); // FIX: 512 base tile size factor required for correct mercator coordinate scale
+    
+    // Current camera position
+    const camX = mc.x - Math.sin(oldBearing) * dMerc * Math.sin(oldPitch);
+    const camY = mc.y + Math.cos(oldBearing) * dMerc * Math.sin(oldPitch);
+    
+    const newB = map.getBearing() - dx * 0.4;
+    const newP = Math.max(0, Math.min(85, map.getPitch() - dy * 0.4));
+    
+    // Enforce 2 meter Z-height logic
+    const metersPerMercator = Math.cos(center.lat * Math.PI / 180) * 40075016.686;
+    const targetZMerc = 2.0 / metersPerMercator;
+    const newPRad = newP * Math.PI / 180;
+    const newScale = (dPixels * Math.cos(newPRad)) / targetZMerc;
+    const newZoom = Math.log2(newScale / 512);
+
+    const newDMerc = dPixels / newScale;
+    const newBRad = newB * Math.PI / 180;
+    
+    // Reposition map center to pivot the array locally against the lens
+    const newCenterX = camX + Math.sin(newBRad) * newDMerc * Math.sin(newPRad);
+    const newCenterY = camY - Math.cos(newBRad) * newDMerc * Math.sin(newPRad);
+
+    map.jumpTo({
+        center: new maplibregl.MercatorCoordinate(newCenterX, newCenterY, 0).toLngLat(),
+        zoom: newZoom,
+        bearing: newB,
+        pitch: newP
+    });
+  }
+});
+window.addEventListener('mouseup', e => {
+  if (firstPersonActive && e.button === 0) {
+    isFPDragging = false;
+    if(map) map.dragPan.enable();
+  }
+});
 
 /* ═══ HUD ═══ */
 function updateMapHUD(){if(!map)return;const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
@@ -2292,7 +2451,7 @@ setInterval(tickClock,1000);tickClock();
 
 let fc=0,lastFT=performance.now();
 function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
-(function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doOrbit();
+(function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doFirstPersonMovement();
 fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
 
 
@@ -2408,19 +2567,22 @@ function updateVignette(part, v) {
   document.documentElement.style.setProperty('--vig-' + part, v + '%');
 }
 
+function updateProjectMaterial() {
+  if (activeProjectMesh) {
+    activeProjectMesh.traverse(ch => {
+      if (ch.isMesh && ch.material) {
+        ch.material.color.setHex(PARAMS.projectColor);
+        ch.material.transparent = (PARAMS.projectOpacity < 1.0);
+        ch.material.opacity = PARAMS.projectOpacity;
+        ch.material.needsUpdate = true;
+      }
+    });
+  }
+}
+
 function setupSettingsPanel() {
   const sliders = [
-    { id: 's-buildingOpacity', param: 'buildingOpacity', fmt: v => v.toFixed(2), cb: updateBuildingMaterials },
-    { id: 's-glbOpacity', param: 'otherGlbMaterialOpacity', fmt: v => v.toFixed(2), cb: updateGlbMaterials },
-    { id: 's-subwayOpacity', param: 'subwayMaterialOpacity', fmt: v => v.toFixed(2), cb: updateSubwayMaterial },
-    { id: 's-gridCellSize', param: 'gridCellSize', fmt: v => String(Math.round(v)), cb: updateGrid },
-    { id: 's-gridLineAlpha', param: 'gridLineAlpha', fmt: v => v.toFixed(2), cb: updateGrid },
-    { id: 's-culturalPyramidSize', param: 'culturalPyramidSize', fmt: v => String(Math.round(v)), cb: onCulturalTagChange },
-    { id: 's-culturalLineWidth', param: 'culturalLineWidth', fmt: v => v.toFixed(1), cb: onCulturalTagChange },
-    { id: 's-culturalTextSize', param: 'culturalTextSize', fmt: v => String(Math.round(v)), cb: onCulturalTagChange },
-    { id: 's-transitIconScale', param: 'transitIconScale', fmt: v => v.toFixed(1), cb: () => {} },
-    { id: 's-ambientIntensity', param: 'ambientIntensity', fmt: v => v.toFixed(2), cb: updateLighting },
-    { id: 's-dirLightIntensity', param: 'dirLightIntensity', fmt: v => v.toFixed(2), cb: updateLighting },
+    { id: 's-projectOpacity', param: 'projectOpacity', fmt: v => v.toFixed(2), cb: updateProjectMaterial },
   ];
   sliders.forEach(cfg => {
     const el = document.getElementById(cfg.id);
@@ -2434,43 +2596,11 @@ function setupSettingsPanel() {
     });
   });
 
-  // Vignette sliders (special — update CSS vars, not PARAMS)
-  ['vigStart', 'vigMid', 'vigEnd'].forEach(key => {
-    const partMap = { vigStart: 'start', vigMid: 'mid', vigEnd: 'end' };
-    const el = document.getElementById('s-' + key);
-    if (!el) return;
-    const valEl = document.getElementById('sv-' + key);
-    el.addEventListener('input', () => {
-      const v = parseFloat(el.value);
-      if (valEl) valEl.textContent = Math.round(v) + '%';
-      updateVignette(partMap[key], v);
-    });
-  });
-
-  // Color inputs
-  const colorEl = document.getElementById('s-subwayColor');
-  if (colorEl) colorEl.addEventListener('input', (e) => {
-    PARAMS.subwayMaterialColor = parseInt(e.target.value.slice(1), 16);
-    const v = document.getElementById('sv-subwayColor'); if(v) v.textContent = e.target.value.slice(1);
-    updateSubwayMaterial();
-  });
-  const carEl = document.getElementById('s-carColor');
-  if (carEl) carEl.addEventListener('input', (e) => {
-    PARAMS.carColor = parseInt(e.target.value.slice(1), 16);
-    const v = document.getElementById('sv-carColor'); if(v) v.textContent = e.target.value.slice(1);
-    updateCarMaterial();
-  });
-  const waterEl = document.getElementById('s-waterColor');
-  if (waterEl) waterEl.addEventListener('input', (e) => {
-    PARAMS.waterColor = e.target.value;
-    const v = document.getElementById('sv-waterColor'); if(v) v.textContent = e.target.value.slice(1);
-    updateWaterStyle();
-  });
-  const waterOpEl = document.getElementById('s-waterOpacity');
-  if (waterOpEl) waterOpEl.addEventListener('input', (e) => {
-    PARAMS.waterOpacity = parseFloat(e.target.value);
-    const v = document.getElementById('sv-waterOpacity'); if(v) v.textContent = parseFloat(e.target.value).toFixed(2);
-    updateWaterStyle();
+  const projColorEl = document.getElementById('s-projectColor');
+  if (projColorEl) projColorEl.addEventListener('input', (e) => {
+    PARAMS.projectColor = parseInt(e.target.value.slice(1), 16);
+    const v = document.getElementById('sv-projectColor'); if(v) v.textContent = e.target.value.slice(1);
+    updateProjectMaterial();
   });
 }
 
