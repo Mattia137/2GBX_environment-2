@@ -9,7 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lil-gui@0.19.1"></script>
+<!-- settings panel built natively -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.8.0/suncalc.min.js"></script>
 
 <style>
@@ -19,17 +19,17 @@
    PARAMETER BLOCK — EDIT THESE EASILY
    ══════════════════════════════════════ */
 :root {
-  /* Text hierarchy */
-  --t1: rgba(255,255,255,0.92);   /* Primary */
-  --t2: rgba(255,255,255,0.60);   /* Secondary */
-  --t3: rgba(255,255,255,0.35);   /* Tertiary */
-  --t4: rgba(255,255,255,0.18);   /* Muted */
-  --t5: rgba(255,255,255,0.08);   /* Ghost */
-  /* Lines & borders */
-  --ln1: rgba(255,255,255,0.06);
-  --ln2: rgba(255,255,255,0.12);
-  --ln3: rgba(255,255,255,0.22);
-  /* Transit colors */
+  /* Monochrome hierarchy — tactical data viz */
+  --t1: rgba(255,255,255,0.80);
+  --t2: rgba(255,255,255,0.45);
+  --t3: rgba(255,255,255,0.22);
+  --t4: rgba(255,255,255,0.10);
+  --t5: rgba(255,255,255,0.04);
+  /* Rules */
+  --ln1: rgba(255,255,255,0.04);
+  --ln2: rgba(255,255,255,0.07);
+  --ln3: rgba(255,255,255,0.14);
+  /* Transit accent colors */
   --c-plane: #66ddff;
   --c-heli: #ffcc66;
   --c-ferry: #cc88ff;
@@ -115,10 +115,10 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 #heading-strip{position:absolute;top:44px;left:50%;transform:translateX(-50%);width:300px;height:18px;overflow:hidden;pointer-events:none}
 #crosshair{position:fixed;top:50%;left:50%;z-index:11;pointer-events:none;transform:translate(-50%,-50%)}
 
-.hp{position:relative;padding:10px 12px;border:1px solid var(--ln1);background:rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.hp::before{content:'';position:absolute;top:0;left:0;width:1px;height:100%;background:var(--t4)}
-.hp-t{font-size:8px;letter-spacing:3px;color:var(--t3);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.hp-t .sq{width:3px;height:3px;background:var(--t4)}.hp-t .sq.on{background:var(--t2)}
+.hp{position:relative;padding:8px 0;background:transparent;border-bottom:1px solid var(--ln1)}.hp:last-child{border-bottom:none}
+.hp::before{display:none}
+.hp-t{font-size:7px;letter-spacing:4px;color:var(--t3);text-transform:uppercase;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.hp-t .sq{width:2px;height:2px;background:var(--t4)}.hp-t .sq.on{background:var(--t2)}
 .dr{display:flex;justify-content:space-between;padding:2px 0;font-size:9px}
 .dr .l{color:var(--t3)}.dr .v{color:var(--t2)}.dr .v.hi{color:var(--t1)}
 
@@ -158,6 +158,21 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 #radar-wrap{position:absolute;right:20px;bottom:76px;width:130px;height:130px;pointer-events:none}
 @keyframes pulse-ring{0%{transform:scale(1);opacity:.4}100%{transform:scale(3);opacity:0}}
 #error-msg{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--t1);font-size:10px;text-align:center;z-index:10001;background:rgba(0,0,0,.95);padding:20px 28px;border:1px solid var(--ln2);max-width:420px}
+/* ═══ SETTINGS PANEL ═══ */
+#settings-panel{position:absolute;top:48px;right:228px;width:210px;max-height:calc(100vh - 120px);overflow-y:auto;scrollbar-width:none;display:none;padding:0 8px}
+#settings-panel::-webkit-scrollbar{display:none}
+#settings-panel.open{display:block}
+.sp-section{border-bottom:1px solid var(--ln1);padding:4px 0}.sp-section:last-child{border-bottom:none}
+.sp-header{font-size:7px;letter-spacing:3px;color:var(--t3);text-transform:uppercase;cursor:pointer;padding:3px 0;user-select:none;transition:color .15s}.sp-header:hover{color:var(--t2)}
+.sp-body{overflow:hidden;max-height:0;transition:max-height .3s ease}.sp-section.open .sp-body{max-height:500px}.sp-section.open .sp-header{color:var(--t2)}
+.sp-row{display:flex;align-items:center;gap:4px;padding:2px 0}
+.sp-label{color:var(--t4);letter-spacing:1px;text-transform:uppercase;min-width:70px;font-size:7px}
+.sp-val{color:var(--t2);min-width:28px;text-align:right;font-size:7px;font-variant-numeric:tabular-nums}
+.sp-slider{flex:1;-webkit-appearance:none;appearance:none;height:1px;background:var(--ln3);outline:none;cursor:pointer}
+.sp-slider::-webkit-slider-thumb{-webkit-appearance:none;width:6px;height:6px;border-radius:50%;background:var(--t2);cursor:pointer;border:none}
+.sp-slider::-moz-range-thumb{width:6px;height:6px;border-radius:50%;background:var(--t2);cursor:pointer;border:none}
+.sp-color{width:20px;height:10px;border:1px solid var(--ln2);background:transparent;cursor:pointer;padding:0;-webkit-appearance:none}.sp-color::-webkit-color-swatch-wrapper{padding:0}.sp-color::-webkit-color-swatch{border:none}
+.lil-gui{display:none!important}
 </style>
 </head>
 <body>
@@ -267,6 +282,63 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 
 <div id="radar-wrap" style="bottom:auto;top:320px;right:250px;"><canvas id="radar-canvas" width="130" height="130"></canvas></div>
 
+<div id="settings-panel">
+  <div class="hp-t" style="padding-bottom:6px;border-bottom:1px solid var(--ln1)">· PARAMETERS<div style="flex:1"></div><span style="cursor:pointer;color:var(--t4);font-size:9px" onclick="toggleSettings()">×</span></div>
+  <div class="sp-section open">
+    <div class="sp-header" onclick="toggleSection(this)">▾ MATERIALS</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">BLDG OPACITY</span><input type="range" class="sp-slider" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.20"><span class="sp-val" id="sv-buildingOpacity">0.20</span></div>
+      <div class="sp-row"><span class="sp-label">GLB OPACITY</span><input type="range" class="sp-slider" id="s-glbOpacity" min="0" max="1" step="0.01" value="0.45"><span class="sp-val" id="sv-glbOpacity">0.45</span></div>
+      <div class="sp-row"><span class="sp-label">SUBWAY CLR</span><input type="color" class="sp-color" id="s-subwayColor" value="#aa88ff"><span class="sp-val" id="sv-subwayColor">aa88ff</span></div>
+      <div class="sp-row"><span class="sp-label">SUBWAY α</span><input type="range" class="sp-slider" id="s-subwayOpacity" min="0" max="1" step="0.01" value="0.80"><span class="sp-val" id="sv-subwayOpacity">0.80</span></div>
+      <div class="sp-row"><span class="sp-label">CAR COLOR</span><input type="color" class="sp-color" id="s-carColor" value="#ff2222"><span class="sp-val" id="sv-carColor">ff2222</span></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ MAP</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">WATER CLR</span><input type="color" class="sp-color" id="s-waterColor" value="#0a0a12"><span class="sp-val" id="sv-waterColor">0a0a12</span></div>
+      <div class="sp-row"><span class="sp-label">WATER α</span><input type="range" class="sp-slider" id="s-waterOpacity" min="0" max="1" step="0.01" value="0.12"><span class="sp-val" id="sv-waterOpacity">0.12</span></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ GRID</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">CELL SIZE</span><input type="range" class="sp-slider" id="s-gridCellSize" min="100" max="5000" step="100" value="2000"><span class="sp-val" id="sv-gridCellSize">2000</span></div>
+      <div class="sp-row"><span class="sp-label">LINE α</span><input type="range" class="sp-slider" id="s-gridLineAlpha" min="0" max="1" step="0.01" value="0.10"><span class="sp-val" id="sv-gridLineAlpha">0.10</span></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ TAGS</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">PYRAMID</span><input type="range" class="sp-slider" id="s-culturalPyramidSize" min="1" max="30" step="1" value="20"><span class="sp-val" id="sv-culturalPyramidSize">20</span></div>
+      <div class="sp-row"><span class="sp-label">LINE W</span><input type="range" class="sp-slider" id="s-culturalLineWidth" min="0.1" max="5" step="0.1" value="1.0"><span class="sp-val" id="sv-culturalLineWidth">1.0</span></div>
+      <div class="sp-row"><span class="sp-label">TEXT SIZE</span><input type="range" class="sp-slider" id="s-culturalTextSize" min="6" max="48" step="1" value="32"><span class="sp-val" id="sv-culturalTextSize">32</span></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ TRANSIT</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">ICON SCALE</span><input type="range" class="sp-slider" id="s-transitIconScale" min="0.1" max="5" step="0.1" value="1.0"><span class="sp-val" id="sv-transitIconScale">1.0</span></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ LIGHTING</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="range" class="sp-slider" id="s-ambientIntensity" min="0" max="2" step="0.05" value="0.45"><span class="sp-val" id="sv-ambientIntensity">0.45</span></div>
+      <div class="sp-row"><span class="sp-label">DIRECT</span><input type="range" class="sp-slider" id="s-dirLightIntensity" min="0" max="2" step="0.05" value="0.65"><span class="sp-val" id="sv-dirLightIntensity">0.65</span></div>
+    </div>
+  </div>
+  <div class="sp-section">
+    <div class="sp-header" onclick="toggleSection(this)">▸ VIGNETTE</div>
+    <div class="sp-body">
+      <div class="sp-row"><span class="sp-label">INNER</span><input type="range" class="sp-slider" id="s-vigStart" min="0" max="100" step="1" value="35"><span class="sp-val" id="sv-vigStart">35%</span></div>
+      <div class="sp-row"><span class="sp-label">MID</span><input type="range" class="sp-slider" id="s-vigMid" min="0" max="100" step="1" value="60"><span class="sp-val" id="sv-vigMid">60%</span></div>
+      <div class="sp-row"><span class="sp-label">OUTER</span><input type="range" class="sp-slider" id="s-vigEnd" min="0" max="100" step="1" value="88"><span class="sp-val" id="sv-vigEnd">88%</span></div>
+    </div>
+  </div>
+</div>
+
 <div id="project-panel" style="position:absolute;bottom:70px;left:16px;width:230px;pointer-events:auto;" class="hp">
   <div class="hp-t"><div class="sq on"></div>PROJECT PREVIEW<div style="flex:1"></div><span style="color:var(--t5)">P1</span></div>
   <div style="width:100%;height:140px;border:1px solid var(--ln2);background:rgba(0,0,0,0.4);position:relative;">
@@ -279,7 +351,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
   </div>
 </div>
 <div class="dt" style="top:65px;left:50%;transform:translateX(-50%)"><span style="border:1px solid var(--ln2);padding:1px 8px"><span id="heading-val" style="color:var(--t2)">295</span></span></div>
-<div id="nav-btns"><div class="nb" onclick="resetCamera()">⌂</div><div class="nb" onclick="map&&map.zoomIn()">+</div><div class="nb" onclick="map&&map.zoomOut()">−</div></div>
+<div id="nav-btns"><div class="nb" onclick="resetCamera()">⌂</div><div class="nb" onclick="map&&map.zoomIn()">+</div><div class="nb" onclick="map&&map.zoomOut()">−</div><div class="nb" onclick="toggleSettings()" title="Settings [S]" style="margin-top:4px;font-size:8px">⚙</div></div>
 <div id="status-row"><span>SECTOR: HY-WEST 29TH-30TH</span><span>MODE: OBSERVATION</span><span>40.7538 / -74.0063</span></div>
 <div id="bottom-strip"><div id="coords">LAT <span class="v" id="c-lat">40.7538</span> &ensp;LON <span class="v" id="c-lon">-74.0063</span> &ensp;ZOOM <span class="v" id="c-zoom">16.0</span></div><div style="font-size:8px;color:var(--t4);letter-spacing:2px">MAPTILER LIVE</div></div>
 </div>
@@ -293,15 +365,19 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@liveblocks/client@3.
 const PARAMS = {
   // Material
   buildingColor: 0xffffff,
-  buildingOpacity: 0.60,
+  buildingOpacity: 0.20,
   glbColor: 0xffffff,
   glbOpacity: 0.60,
-  glbRoughness: 0.5,
-  glbMetalness: 0.1,
+  glbRoughness: 0.3,
+  glbMetalness: 0.0,
   subwayMaterialColor: 0xaa88ff,
   subwayMaterialOpacity: 0.8,
   otherGlbMaterialColor: 0xffffff,
-  otherGlbMaterialOpacity: 0.60,
+  otherGlbMaterialOpacity: 0.45,
+  // Project GLB (distinct)
+  projectColor: 0xffffff,
+  projectEmissive: 0x1a1a2e,
+  projectOpacity: 0.90,
   // Light
   ambientIntensity: 0.45,
   dirLightIntensity: 0.65,
@@ -311,8 +387,8 @@ const PARAMS = {
   landOpacity: 0.65,
   roadColor: '#161620',
   roadOpacity: 0.5,
-  waterColor: '#ffffff',
-  waterOpacity: 0.8,
+  waterColor: '#0a0a12',
+  waterOpacity: 0.12,
   gridOpacity: 0.08,
   gridSize: 0.004,
   gridCount: 30,
@@ -483,6 +559,7 @@ function cleanStyle(s){
 let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
 let layerState={buildings:true,transit:true,grid:true,glb:true,scanlines:true,'site-marker':true};
 let glbCustomLayer=null;
+let vectorSourceName='openmaptiles';
 
 async function initMap(){
   try{
@@ -493,6 +570,7 @@ async function initMap(){
     map.on('load',()=>{
 
       const src=Object.keys(map.getStyle().sources).find(k=>map.getStyle().sources[k].type==='vector')||'openmaptiles';
+      vectorSourceName=src;
 
       // Cut out area for High-res Geometry
       // Calculated from the base vertices of the bounding_box.glb file.
@@ -625,6 +703,7 @@ async function initMap(){
          if (!graphBuilt) {
             buildGraphFromMapTiler();
          }
+         updateCulturalTags();
       });
 
       // Fog
@@ -660,11 +739,11 @@ function createTextSprite(message) {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.minFilter = THREE.LinearFilter;
-  const spriteMaterial = new THREE.SpriteMaterial({ map: texture, depthTest: false });
-  const sprite = new THREE.Sprite(spriteMaterial);
-  // Scale down the canvas size to 3D units
-  sprite.scale.set(canvas.width * 0.1, canvas.height * 0.1, 1); 
-  return sprite;
+  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, side: THREE.DoubleSide });
+  const geometry = new THREE.PlaneGeometry(canvas.width * 0.1, canvas.height * 0.1);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.userData.isCulturalText = true;
+  return mesh;
 }
 
 function createCulturalTag(text, lngLat, isSiteMarker=false, roofHeight=0) {
@@ -715,8 +794,12 @@ function createCulturalTag(text, lngLat, isSiteMarker=false, roofHeight=0) {
 function updateCulturalTags() {
   if (!map || !glbCustomLayer || !glbCustomLayer.scene) return;
   
-  // Find cultural POIs
-  const features = map.querySourceFeatures('openmaptiles', { sourceLayer: 'poi' });
+  // Find cultural POIs — try 'poi' source layer, then 'place' as fallback
+  let features = [];
+  try { features = map.querySourceFeatures(vectorSourceName, { sourceLayer: 'poi' }); } catch(e) {}
+  if (features.length === 0) {
+    try { features = map.querySourceFeatures(vectorSourceName, { sourceLayer: 'place' }); } catch(e) {}
+  }
   const targetClasses = ['museum', 'gallery', 'convention_centre', 'theatre', 'arts_centre', 'library', 'attraction', 'artwork'];
   
   const currentFrameTags = new Set();
@@ -736,8 +819,12 @@ function updateCulturalTags() {
         
         if (!createdCulturalTags.has(id)) {
           const px = map.project(coords);
-          const bldgs = map.queryRenderedFeatures(px, { layers: map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building').map(l=>l.id) });
-          const roofHeight = bldgs.length > 0 ? (bldgs[0].properties.render_height || bldgs[0].properties.height || 0) : 0;
+          const buildingLayerIds = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building').map(l=>l.id);
+          let roofHeight = 0;
+          if (buildingLayerIds.length > 0) {
+            const bldgs = map.queryRenderedFeatures(px, { layers: buildingLayerIds });
+            roofHeight = bldgs.length > 0 ? (bldgs[0].properties.render_height || bldgs[0].properties.height || 0) : 0;
+          }
           const tag = createCulturalTag(name, coords, false, roofHeight);
           tag.name = id;
           culturalTagsGroup.add(tag);
@@ -915,18 +1002,24 @@ function loadAllGLBs(){
         }
       }
 
-      // Animate cultural tags and site marker bobbing
-      const time = performance.now() / 1000;
-      culturalTagsGroup.children.forEach(tag => {
-        if(tag.userData && tag.userData.initialY !== undefined) {
-          tag.children.forEach(c => {
-            if(c.type === 'Mesh' || c.type === 'Sprite') { // Bob cone and text
-              const basePos = c.type === 'Mesh' ? 100 : 100 + PARAMS.culturalPyramidSize + 10;
-              c.position.y = basePos + Math.sin(time * 2 + tag.userData.animOffset) * 2;
-            }
-          });
-        }
-      });
+      // Billboard cultural tag text to always face the camera
+      // + Zoom-compensated scaling so labels stay the same screen size
+      {
+        const bRad = map.getBearing() * Math.PI / 180;
+        const pRad = map.getPitch() * Math.PI / 180;
+        const billboardQuat = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(-pRad, -bRad, 0, 'YXZ')
+        );
+        const zoomScale = Math.pow(2, 16.2 - map.getZoom());
+        culturalTagsGroup.children.forEach(tag => {
+          tag.scale.set(zoomScale, zoomScale, zoomScale);
+        });
+        culturalTagsGroup.traverse(child => {
+          if (child.userData && child.userData.isCulturalText) {
+            child.quaternion.copy(billboardQuat);
+          }
+        });
+      }
 
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
@@ -1018,11 +1111,12 @@ function loadActiveProject(filepath) {
   loader.load(filepath, (gltf) => {
     activeProjectMesh = gltf.scene;
     activeProjectOriginalMaterial = new THREE.MeshStandardMaterial({
-      color: PARAMS.otherGlbMaterialColor,
-      roughness: PARAMS.glbRoughness,
-      metalness: PARAMS.glbMetalness,
+      color: PARAMS.projectColor,
+      emissive: PARAMS.projectEmissive,
+      roughness: 0.15,
+      metalness: 0.0,
       transparent: true,
-      opacity: PARAMS.otherGlbMaterialOpacity,
+      opacity: PARAMS.projectOpacity,
       side: THREE.DoubleSide
     });
     activeProjectMesh.traverse(ch => {
@@ -2098,6 +2192,10 @@ function updateSim(){
   let ct={plane:0,heli:0,ferry:0,subway:0,bus:0};
   flightMarkers.forEach(f=>{if(f.type==='heli')ct.heli++;else ct.plane++});
 
+  // Zoom-compensated scale so transit markers stay the same screen size
+  const zoomScale = map ? Math.pow(2, 16.2 - map.getZoom()) : 1;
+  const tScale = PARAMS.transitIconScale * zoomScale;
+
   for(const[id,obj]of simMarkers){
     const route=obj.route;
     ct[route.type]++;
@@ -2112,6 +2210,7 @@ function updateSim(){
     if(pos){
       const lp = mercatorFromLngLat(pos.lon, pos.lat, route.alt || 0);
       obj.mesh.position.set(lp.x, lp.y, lp.z);
+      obj.mesh.scale.set(tScale, tScale, tScale);
       obj.mesh.visible = transitVisible;
     }
   }
@@ -2120,6 +2219,7 @@ function updateSim(){
       const lp = mercatorFromLngLat(f.lon, f.lat, f.alt);
       f.mesh.position.set(lp.x, lp.y, lp.z);
     }
+    f.mesh.scale.set(tScale, tScale, tScale);
     f.mesh.visible = transitVisible;
   });
   document.getElementById('ct-plane').textContent=ct.plane;document.getElementById('ct-heli').textContent=ct.heli;
@@ -2213,157 +2313,181 @@ setInterval(()=>{
   document.getElementById('v-local-time').textContent = v;
 }, 1000);
 
+/* ═══ SETTINGS PANEL ═══ */
+function toggleSettings() {
+  document.getElementById('settings-panel').classList.toggle('open');
+}
+window.toggleSettings = toggleSettings;
+
+function toggleSection(header) {
+  const section = header.parentElement;
+  const wasOpen = section.classList.contains('open');
+  section.classList.toggle('open');
+  header.textContent = (wasOpen ? '▸ ' : '▾ ') + header.textContent.slice(2);
+}
+window.toggleSection = toggleSection;
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 's' && !e.ctrlKey && !e.metaKey && !e.altKey && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+    toggleSettings();
+  }
+});
+
+function updateGrid() {
+  if(!glbCustomLayer || !glbCustomLayer.scene) return;
+  const oldGrid = glbCustomLayer.scene.getObjectByName('groundGrid');
+  if(oldGrid) {
+    glbCustomLayer.scene.remove(oldGrid);
+    if (oldGrid.geometry) oldGrid.geometry.dispose();
+    if (oldGrid.material) {
+      if (Array.isArray(oldGrid.material)) oldGrid.material.forEach(m => m.dispose());
+      else oldGrid.material.dispose();
+    }
+  }
+  glbCustomLayer.gridHelper = new THREE.GridHelper(PARAMS.gridCellSize, PARAMS.gridCount * 2, 0xffffff, 0xffffff);
+  glbCustomLayer.gridHelper.material.opacity = PARAMS.gridLineAlpha;
+  glbCustomLayer.gridHelper.material.transparent = true;
+  glbCustomLayer.gridHelper.position.y = 0.5;
+  glbCustomLayer.gridHelper.name = 'groundGrid';
+  glbCustomLayer.scene.add(glbCustomLayer.gridHelper);
+}
+
+function onCulturalTagChange() {
+  culturalTagsGroup.children.slice().forEach(child => { culturalTagsGroup.remove(child); });
+  createdCulturalTags.clear();
+  addSiteMarker();
+  if(siteMarkerMesh) culturalTagsGroup.add(siteMarkerMesh);
+  updateCulturalTags();
+}
+
+function updateBuildingMaterials() {
+  if (!map) return;
+  const layers = map.getStyle().layers.filter(l => l.id.includes('building'));
+  layers.forEach(l => {
+    if (l.type === 'fill') try { map.setPaintProperty(l.id, 'fill-opacity', PARAMS.buildingOpacity); } catch(e){}
+    if (l.type === 'fill-extrusion') try { map.setPaintProperty(l.id, 'fill-extrusion-opacity', PARAMS.buildingOpacity); } catch(e){}
+  });
+}
+
+function updateGlbMaterials() {
+  if (!glbCustomLayer || !glbCustomLayer.scene) return;
+  glbCustomLayer.scene.children.forEach(obj => {
+    if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
+      obj.traverse(child => { if (child.isMesh && child.material) child.material.opacity = PARAMS.otherGlbMaterialOpacity; });
+    }
+  });
+}
+
+function updateSubwayMaterial() {
+  if (!glbCustomLayer || !glbCustomLayer.scene) return;
+  const sub = glbCustomLayer.scene.getObjectByName('subway_system.glb');
+  if (sub) sub.traverse(child => {
+    if (child.isMesh && child.material) { child.material.color.setHex(PARAMS.subwayMaterialColor); child.material.opacity = PARAMS.subwayMaterialOpacity; }
+  });
+}
+
+function updateCarMaterial() {
+  if (trafficGroup) trafficGroup.children.forEach(mesh => { if (mesh && mesh.material) mesh.material.color.setHex(PARAMS.carColor); });
+}
+
+function updateWaterStyle() {
+  if (!map) return;
+  const layers = map.getStyle().layers.filter(l => l.id.includes('water') || l.id.includes('ocean'));
+  layers.forEach(l => { if (l.type === 'fill') { try { map.setPaintProperty(l.id, 'fill-color', PARAMS.waterColor); map.setPaintProperty(l.id, 'fill-opacity', PARAMS.waterOpacity); } catch(e){} } });
+}
+
+function updateLighting() {
+  if (!glbCustomLayer || !glbCustomLayer.scene) return;
+  glbCustomLayer.scene.children.forEach(child => {
+    if (child.isAmbientLight) child.intensity = PARAMS.ambientIntensity;
+    if (child.isDirectionalLight) child.intensity = PARAMS.dirLightIntensity;
+  });
+}
+
+function updateVignette(part, v) {
+  document.documentElement.style.setProperty('--vig-' + part, v + '%');
+}
+
+function setupSettingsPanel() {
+  const sliders = [
+    { id: 's-buildingOpacity', param: 'buildingOpacity', fmt: v => v.toFixed(2), cb: updateBuildingMaterials },
+    { id: 's-glbOpacity', param: 'otherGlbMaterialOpacity', fmt: v => v.toFixed(2), cb: updateGlbMaterials },
+    { id: 's-subwayOpacity', param: 'subwayMaterialOpacity', fmt: v => v.toFixed(2), cb: updateSubwayMaterial },
+    { id: 's-gridCellSize', param: 'gridCellSize', fmt: v => String(Math.round(v)), cb: updateGrid },
+    { id: 's-gridLineAlpha', param: 'gridLineAlpha', fmt: v => v.toFixed(2), cb: updateGrid },
+    { id: 's-culturalPyramidSize', param: 'culturalPyramidSize', fmt: v => String(Math.round(v)), cb: onCulturalTagChange },
+    { id: 's-culturalLineWidth', param: 'culturalLineWidth', fmt: v => v.toFixed(1), cb: onCulturalTagChange },
+    { id: 's-culturalTextSize', param: 'culturalTextSize', fmt: v => String(Math.round(v)), cb: onCulturalTagChange },
+    { id: 's-transitIconScale', param: 'transitIconScale', fmt: v => v.toFixed(1), cb: () => {} },
+    { id: 's-ambientIntensity', param: 'ambientIntensity', fmt: v => v.toFixed(2), cb: updateLighting },
+    { id: 's-dirLightIntensity', param: 'dirLightIntensity', fmt: v => v.toFixed(2), cb: updateLighting },
+  ];
+  sliders.forEach(cfg => {
+    const el = document.getElementById(cfg.id);
+    if (!el) return;
+    const valEl = document.getElementById('sv-' + cfg.id.slice(2));
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      PARAMS[cfg.param] = v;
+      if (valEl) valEl.textContent = cfg.fmt(v);
+      cfg.cb();
+    });
+  });
+
+  // Vignette sliders (special — update CSS vars, not PARAMS)
+  ['vigStart', 'vigMid', 'vigEnd'].forEach(key => {
+    const partMap = { vigStart: 'start', vigMid: 'mid', vigEnd: 'end' };
+    const el = document.getElementById('s-' + key);
+    if (!el) return;
+    const valEl = document.getElementById('sv-' + key);
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      if (valEl) valEl.textContent = Math.round(v) + '%';
+      updateVignette(partMap[key], v);
+    });
+  });
+
+  // Color inputs
+  const colorEl = document.getElementById('s-subwayColor');
+  if (colorEl) colorEl.addEventListener('input', (e) => {
+    PARAMS.subwayMaterialColor = parseInt(e.target.value.slice(1), 16);
+    const v = document.getElementById('sv-subwayColor'); if(v) v.textContent = e.target.value.slice(1);
+    updateSubwayMaterial();
+  });
+  const carEl = document.getElementById('s-carColor');
+  if (carEl) carEl.addEventListener('input', (e) => {
+    PARAMS.carColor = parseInt(e.target.value.slice(1), 16);
+    const v = document.getElementById('sv-carColor'); if(v) v.textContent = e.target.value.slice(1);
+    updateCarMaterial();
+  });
+  const waterEl = document.getElementById('s-waterColor');
+  if (waterEl) waterEl.addEventListener('input', (e) => {
+    PARAMS.waterColor = e.target.value;
+    const v = document.getElementById('sv-waterColor'); if(v) v.textContent = e.target.value.slice(1);
+    updateWaterStyle();
+  });
+  const waterOpEl = document.getElementById('s-waterOpacity');
+  if (waterOpEl) waterOpEl.addEventListener('input', (e) => {
+    PARAMS.waterOpacity = parseFloat(e.target.value);
+    const v = document.getElementById('sv-waterOpacity'); if(v) v.textContent = parseFloat(e.target.value).toFixed(2);
+    updateWaterStyle();
+  });
+}
+
 async function main(){
   await bootSeq();
   await initMap();
   setupGLB();
   
   
-  // Setup lil-gui
+  // Setup transit CSS vars
   document.documentElement.style.setProperty('--c-plane', PARAMS.transitGroupColors.plane);
   document.documentElement.style.setProperty('--c-heli', PARAMS.transitGroupColors.heli);
   document.documentElement.style.setProperty('--c-ferry', PARAMS.transitGroupColors.ferry);
   document.documentElement.style.setProperty('--c-subway', PARAMS.transitGroupColors.subway);
   document.documentElement.style.setProperty('--c-bus', PARAMS.transitGroupColors.bus);
-  const gui = new lil.GUI({ title: 'System Parameters' });
-  gui.domElement.style.position = 'absolute';
-  gui.domElement.style.top = '10px';
-  gui.domElement.style.right = '320px'; // To left of right HUD
-  gui.domElement.style.zIndex = '1000';
-  
-  const onCulturalTagChange = () => {
-    culturalTagsGroup.children.slice().forEach(child => {
-      culturalTagsGroup.remove(child);
-    });
-    createdCulturalTags.clear();
-    addSiteMarker();
-    if(siteMarkerMesh) culturalTagsGroup.add(siteMarkerMesh);
-    updateCulturalTags();
-  };
-  const fTag = gui.addFolder('Cultural Tags');
-  fTag.add(PARAMS, 'culturalPyramidSize', 1, 20).onChange(onCulturalTagChange);
-  fTag.add(PARAMS, 'culturalLineWidth', 0.1, 5).onChange(onCulturalTagChange);
-  fTag.add(PARAMS, 'culturalTextSize', 6, 32).onChange(onCulturalTagChange);
-  
-  const fTransit = gui.addFolder('Transit Settings');
-  
-  
-  fTransit.add(PARAMS, 'transitIconScale', 0.1, 5).onChange((v) => {
-    // sim markers
-    for(const [id, obj] of simMarkers) {
-      if(obj.mesh) {
-        obj.mesh.scale.set(v, v, v);
-      }
-    }
-    // flight markers
-    flightMarkers.forEach(f => {
-      if(f.mesh) {
-        f.mesh.scale.set(v, v, v);
-      }
-    });
-  });
-  const fMat = gui.addFolder('Materials');
-  fMat.addColor(PARAMS, 'subwayMaterialColor').onChange(c => {
-    if (glbCustomLayer && glbCustomLayer.scene) {
-        const sub = glbCustomLayer.scene.getObjectByName('subway_system.glb');
-        if (sub) {
-            sub.traverse(child => {
-                if(child.isMesh && child.material) child.material.color.setHex(c);
-            });
-        }
-    }
-  });
-  fMat.add(PARAMS, 'subwayMaterialOpacity', 0, 1).onChange(o => {
-    if (glbCustomLayer && glbCustomLayer.scene) {
-        const sub = glbCustomLayer.scene.getObjectByName('subway_system.glb');
-        if (sub) {
-            sub.traverse(child => {
-                if(child.isMesh && child.material) child.material.opacity = o;
-            });
-        }
-    }
-  });
-  fMat.addColor(PARAMS, 'otherGlbMaterialColor').onChange(c => {
-    if (glbCustomLayer && glbCustomLayer.scene) {
-        glbCustomLayer.scene.children.forEach(obj => {
-            if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
-                obj.traverse(child => {
-                    if(child.isMesh && child.material) child.material.color.setHex(c);
-                });
-            }
-        });
-        if (activeProjectMesh) {
-             activeProjectOriginalMaterial.color.setHex(c);
-        }
-    }
-  });
-  fMat.add(PARAMS, 'otherGlbMaterialOpacity', 0, 1).onChange(o => {
-    if (glbCustomLayer && glbCustomLayer.scene) {
-        glbCustomLayer.scene.children.forEach(obj => {
-            if (obj.name && obj.name.endsWith('.glb') && obj.name !== 'subway_system.glb') {
-                obj.traverse(child => {
-                    if(child.isMesh && child.material) child.material.opacity = o;
-                });
-            }
-        });
-        if (activeProjectMesh) {
-             activeProjectOriginalMaterial.opacity = o;
-        }
-    }
-  });
 
-  const updateWater = () => {
-    const waterLayers = map.getStyle().layers.filter(l => l.id.includes('water') || l.id.includes('ocean'));
-    waterLayers.forEach(l => {
-      if(l.type === 'fill') {
-        map.setPaintProperty(l.id, 'fill-color', PARAMS.waterColor);
-        map.setPaintProperty(l.id, 'fill-opacity', PARAMS.waterOpacity);
-      }
-    });
-  };
-  const fMap = gui.addFolder('Map Style');
-  fMap.addColor(PARAMS, 'waterColor').onChange(updateWater);
-  fMap.add(PARAMS, 'waterOpacity', 0, 1).onChange(updateWater);
-  
-  const fGrid = gui.addFolder('Grid');
-  fGrid.add(PARAMS, 'gridCellSize', 100, 5000).onChange(v => updateGrid());
-  fGrid.add(PARAMS, 'gridLineAlpha', 0, 1).onChange(v => updateGrid());
-  
-  const fTraf = gui.addFolder('Traffic Sim');
-  fTraf.addColor(PARAMS, 'carColor').onChange(c => {
-    if(trafficGroup) {
-        trafficGroup.children.forEach(mesh => {
-            if(mesh && mesh.material) {
-                mesh.material.color.setHex(c);
-            }
-        });
-    }
-  });
-  
-  
-  function updateGrid() {
-    if(!glbCustomLayer || !glbCustomLayer.scene) return;
-    const oldGrid = glbCustomLayer.scene.getObjectByName('groundGrid');
-    if(oldGrid) {
-      glbCustomLayer.scene.remove(oldGrid);
-      if (oldGrid.geometry) oldGrid.geometry.dispose();
-      if (oldGrid.material) {
-        if (Array.isArray(oldGrid.material)) {
-            oldGrid.material.forEach(m => m.dispose());
-        } else {
-            oldGrid.material.dispose();
-        }
-      }
-    }
-    glbCustomLayer.gridHelper = new THREE.GridHelper(PARAMS.gridCellSize, PARAMS.gridCount * 2, 0xffffff, 0xffffff);
-    glbCustomLayer.gridHelper.material.opacity = PARAMS.gridLineAlpha;
-    glbCustomLayer.gridHelper.material.transparent = true;
-    glbCustomLayer.gridHelper.position.y = 0.5;
-    glbCustomLayer.gridHelper.name = 'groundGrid';
-    glbCustomLayer.scene.add(glbCustomLayer.gridHelper);
-  }
-
-
+  setupSettingsPanel();
   initPreviewRenderer();
   updatePreviewLoop();
 }
