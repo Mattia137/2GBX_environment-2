@@ -192,7 +192,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 
 <div id="map"></div>
 <div id="vignette"></div>
-<div id="scanlines"></div>
+<div id="scanlines" style="display:none"></div>
 
 <div id="hud">
 <div class="brk tl"></div><div class="brk tr"></div><div class="brk bl"></div><div class="brk br"></div>
@@ -244,9 +244,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
   <div class="hp"><div class="hp-t"><div class="sq on"></div>LAYERS<div style="flex:1"></div><span style="color:var(--t5)">01</span></div>
     <div class="lb on" data-layer="buildings" onclick="toggleLayer(this)"><div class="ind"></div>3D BUILDINGS</div>
     <div class="lb on" data-layer="transit" onclick="toggleLayer(this)"><div class="ind"></div>TRANSIT</div>
-    <div class="lb on" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
+    <div class="lb" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
     <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
-    <div class="lb on" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
+    <div class="lb" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
     <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div>
     <div class="lb" data-layer="powergrid" onclick="toggleLayer(this)"><div class="ind"></div>POWER GRID</div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
@@ -297,10 +297,10 @@ svg#glitch-filters{position:absolute;width:0;height:0}
   <div class="sp-section open">
     <div class="sp-header" onclick="toggleSection(this)">▾ PROJECT MATERIAL</div>
     <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-projectColor" value="#ffffff"><span class="sp-val" id="sv-projectColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-projectOpacity" min="0" max="1" step="0.01" value="0.90"><span class="sp-val" id="sv-projectOpacity">0.90</span></div>
-      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-projectMetalness" min="0" max="1" step="0.01" value="0.00"><span class="sp-val" id="sv-projectMetalness">0.00</span></div>
-      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-projectRoughness" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-projectRoughness">0.50</span></div>
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-projectColor" value="#141414"><span class="sp-val" id="sv-projectColor">141414</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-projectOpacity" min="0" max="1" step="0.01" value="0.55"><span class="sp-val" id="sv-projectOpacity">0.55</span></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-projectMetalness" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-projectMetalness">0.50</span></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-projectRoughness" min="0" max="1" step="0.01" value="0.90"><span class="sp-val" id="sv-projectRoughness">0.90</span></div>
     </div>
   </div>
 
@@ -319,8 +319,8 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-subwayColor" value="#aa88ff"><span class="sp-val" id="sv-subwayColor">aa88ff</span></div>
       <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-subwayOpacity" min="0" max="1" step="0.01" value="0.80"><span class="sp-val" id="sv-subwayOpacity">0.80</span></div>
-      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-subwayMetalness" min="0" max="1" step="0.01" value="0.00"><span class="sp-val" id="sv-subwayMetalness">0.00</span></div>
-      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-subwayRoughness" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-subwayRoughness">0.50</span></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-subwayMetalness" min="0" max="1" step="0.01" value="1.00"><span class="sp-val" id="sv-subwayMetalness">1.00</span></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-subwayRoughness" min="0" max="1" step="0.01" value="1.00"><span class="sp-val" id="sv-subwayRoughness">1.00</span></div>
     </div>
   </div>
 
@@ -328,22 +328,22 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ MAP BUILDINGS</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-buildingColor" value="#ffffff"><span class="sp-val" id="sv-buildingColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-buildingOpacity">0.50</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.10"><span class="sp-val" id="sv-buildingOpacity">0.10</span></div>
     </div>
   </div>
 
   <div class="sp-section">
     <div class="sp-header" onclick="toggleSection(this)">▸ MAP STREETS</div>
     <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-roadColor" value="#161620"><span class="sp-val" id="sv-roadColor">161620</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-roadOpacity" min="0" max="1" step="0.01" value="0.50"><span class="sp-val" id="sv-roadOpacity">0.50</span></div>
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-roadColor" value="#ffffff"><span class="sp-val" id="sv-roadColor">ffffff</span></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-roadOpacity" min="0" max="1" step="0.01" value="0.10"><span class="sp-val" id="sv-roadOpacity">0.10</span></div>
     </div>
   </div>
 
   <div class="sp-section">
     <div class="sp-header" onclick="toggleSection(this)">▸ MAP WATER</div>
     <div class="sp-body">
-      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-waterColor" value="#666666"><span class="sp-val" id="sv-waterColor">666666</span></div>
+      <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-waterColor" value="#4f4f4f"><span class="sp-val" id="sv-waterColor">4f4f4f</span></div>
       <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-waterOpacity" min="0" max="1" step="0.01" value="0.40"><span class="sp-val" id="sv-waterOpacity">0.40</span></div>
     </div>
   </div>
@@ -354,7 +354,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-dirColor" value="#ffffff"><span class="sp-val" id="sv-dirColor">ffffff</span></div>
       <div class="sp-row"><span class="sp-label">INTENSITY</span><input type="range" class="sp-slider" id="s-dirIntensity" min="0" max="5" step="0.05" value="1.25"><span class="sp-val" id="sv-dirIntensity">1.25</span></div>
       <div class="sp-row"><span class="sp-label">AZIMUTH</span><input type="range" class="sp-slider" id="s-dirAzimuth" min="0" max="360" step="1" value="225"><span class="sp-val" id="sv-dirAzimuth">225°</span></div>
-      <div class="sp-row"><span class="sp-label">ALTITUDE</span><input type="range" class="sp-slider" id="s-dirAltitude" min="0" max="90" step="1" value="45"><span class="sp-val" id="sv-dirAltitude">45°</span></div>
+      <div class="sp-row"><span class="sp-label">ALTITUDE</span><input type="range" class="sp-slider" id="s-dirAltitude" min="0" max="90" step="1" value="85"><span class="sp-val" id="sv-dirAltitude">85°</span></div>
     </div>
   </div>
 
@@ -362,8 +362,8 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ ENV LIGHT</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-ambColor" value="#ffffff"><span class="sp-val" id="sv-ambColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="range" class="sp-slider" id="s-ambIntensity" min="0" max="3" step="0.05" value="0.85"><span class="sp-val" id="sv-ambIntensity">0.85</span></div>
-      <div class="sp-row"><span class="sp-label">HEMI</span><input type="range" class="sp-slider" id="s-hemiIntensity" min="0" max="3" step="0.05" value="1.00"><span class="sp-val" id="sv-hemiIntensity">1.00</span></div>
+      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="range" class="sp-slider" id="s-ambIntensity" min="0" max="3" step="0.05" value="0.90"><span class="sp-val" id="sv-ambIntensity">0.90</span></div>
+      <div class="sp-row"><span class="sp-label">HEMI</span><input type="range" class="sp-slider" id="s-hemiIntensity" min="0" max="3" step="0.05" value="0.05"><span class="sp-val" id="sv-hemiIntensity">0.05</span></div>
     </div>
   </div>
 </div>
@@ -394,45 +394,45 @@ const PARAMS = {
   // Material
   buildingOpacity: 0.50,
   glbColor: 0xffffff,
-  glbOpacity: 0.60,
+  glbOpacity: 1.00,
   glbRoughness: 0.3,
   glbMetalness: 0.0,
   subwayMaterialColor: 0xaa88ff,
-  subwayMaterialOpacity: 0.8,
-  subwayMaterialMetalness: 0.0,
-  subwayMaterialRoughness: 0.5,
+  subwayMaterialOpacity: 1.0,
+  subwayMaterialMetalness: 0.6,
+  subwayMaterialRoughness: 0.8,
   otherGlbMaterialColor: 0xffffff,
-  otherGlbMaterialOpacity: 0.35,
+  otherGlbMaterialOpacity: 1.00,
   otherGlbMaterialMetalness: 0.10,
   otherGlbMaterialRoughness: 0.80,
   // Project GLB (distinct)
-  projectColor: 0xffffff,
+  projectColor: 0x141414,
   projectEmissive: 0x1a1a2e,
-  projectOpacity: 0.90,
-  projectMetalness: 0.0,
-  projectRoughness: 0.5,
+  projectOpacity: 1.00,
+  projectMetalness: 0.50,
+  projectRoughness: 0.90,
   // Light
   ambientColor: 0xffffff,
-  ambientIntensity: 0.85,
-  hemiIntensity: 1.0,
+  ambientIntensity: 0.70,
+  hemiIntensity: 0.05,
   dirLightColor: 0xffffff,
-  dirLightIntensity: 1.25,
+  dirLightIntensity: 1.00,
   dirLightAzimuth: 225,
-  dirLightAltitude: 45,
+  dirLightAltitude: 85,
   // Map buildings
   buildingColor: '#ffffff',
   // Map
   backgroundFill: '#050506',
   landFill: '#060608',
   landOpacity: 0.65,
-  roadColor: '#161620',
-  roadOpacity: 0.5,
-  waterColor: '#666666',
-  waterOpacity: 0.40,
+  roadColor: '#ffffff',
+  roadOpacity: 0.40,
+  waterColor: '#4f4f4f',
+  waterOpacity: 0.25,
   gridOpacity: 0.08,
-  gridSize: 0.004,
-  gridCount: 30,
-  gridCellSize: 2000,
+  gridSize: 10.4,
+  gridCount: 300,
+  gridCellSize: 20000,
   gridLineAlpha: 0.1,
   // Fog
   fogNear: 0.5,
@@ -590,7 +590,7 @@ function cleanStyle(s){
 /* ═══ MAP ═══ */
 let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
 let firstPersonActive=false, fpKeys={w:false,a:false,s:false,d:false};
-let layerState={buildings:true,transit:true,grid:true,glb:true,scanlines:true,'site-marker':true,powergrid:false};
+let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false};
 let glbCustomLayer=null;
 let powerPopup=null;
 let vectorSourceName='openmaptiles';
@@ -927,6 +927,7 @@ function loadAllGLBs(){
       this.gridHelper.material.transparent = true;
       this.gridHelper.material.opacity = PARAMS.gridLineAlpha;
       this.gridHelper.position.y = 0.5; // Slightly above zero to prevent z-fighting with map layer
+      this.gridHelper.visible = false; // Off by default
       this.scene.add(this.gridHelper);
 
       // Remote Players Group
@@ -1160,9 +1161,9 @@ function loadAllGLBs(){
             ch.material = new THREE.MeshStandardMaterial({
               color: 0xffffff,
               transparent: true,
-              opacity: 0.35,
+              opacity: 0.70,
               roughness: 0.8,
-              metalness: 0.1,
+              metalness: 0.5,
               side: THREE.DoubleSide
             });
           }

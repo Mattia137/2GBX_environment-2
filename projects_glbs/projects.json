@@ -3,18 +3,24 @@
     "name": "07_SPIRE",
     "file": "projects_glbs/07_SPIRE.glb",
     "desc": "Placeholder description for 07_SPIRE. Structural metadata and environmental constraints will be populated here.",
+    "link": "https://jacoblehrer.com/projects/programmatic.html"
+  },
+  {
+    "name": "G10_AB_URD_CITY",
+    "file": "projects_glbs/G10_AB_URD_CITY.glb",
+    "desc": "Placeholder description for G10_AB_URD_CITY. Structural metadata and environmental constraints will be populated here.",
     "link": "#"
   },
   {
     "name": "G11_HYPEROBJECT",
     "file": "projects_glbs/G11_HYPEROBJECT.glb",
     "desc": "Placeholder description for G11_HYPEROBJECT. Structural metadata and environmental constraints will be populated here.",
-    "link": "#"
+    "link": "https://mattia137.github.io/2GBX_Hyperobject/"
   },
   {
     "name": "G15_MEDIA_TOWER",
     "file": "projects_glbs/G15_MEDIA_TOWER.glb",
     "desc": "Placeholder description for G15_MEDIA_TOWER. Structural metadata and environmental constraints will be populated here.",
-    "link": "#"
+    "link": "http://hsgleeson.xyz/projects/media/index.html"
   }
 ]
