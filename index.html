@@ -844,46 +844,63 @@ function createCulturalTag(text, lngLat, isSiteMarker=false, roofHeight=0) {
   return group;
 }
 
+// Returns the building roof height in metres at a given [lng, lat] using
+// queryRenderedFeatures. Returns 0 if no building is found or tiles not loaded.
+function queryRoofHeight(coords) {
+  const px = map.project(coords);
+  const buildingLayerIds = map.getStyle().layers
+    .filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building')
+    .map(l => l.id);
+  if (!buildingLayerIds.length) return 0;
+  const bldgs = map.queryRenderedFeatures(px, { layers: buildingLayerIds });
+  if (!bldgs.length) return 0;
+  // 'height' is the raw OSM metres value; 'render_height' is style-computed and
+  // often unavailable via queryRenderedFeatures — always prefer 'height'.
+  return parseFloat(bldgs[0].properties.height || bldgs[0].properties.render_height || 0);
+}
+
 function updateCulturalTags() {
   if (!map || !glbCustomLayer || !glbCustomLayer.scene) return;
-  
-  // Find cultural POIs — try 'poi' source layer, then 'place' as fallback
+
   let features = [];
   try { features = map.querySourceFeatures(vectorSourceName, { sourceLayer: 'poi' }); } catch(e) {}
   if (features.length === 0) {
     try { features = map.querySourceFeatures(vectorSourceName, { sourceLayer: 'place' }); } catch(e) {}
   }
   const targetClasses = ['museum', 'gallery', 'convention_centre', 'theatre', 'arts_centre', 'library', 'attraction', 'artwork'];
-  
-  const currentFrameTags = new Set();
-  
+
   for (const feature of features) {
     const cls = feature.properties.class || feature.properties.subclass;
-    if (targetClasses.includes(cls) && feature.properties.name) {
-      const name = feature.properties.name;
-      // Use coordinates of the feature (usually Point geometry for POI)
-      let coords = null;
-      if (feature.geometry.type === 'Point') coords = feature.geometry.coordinates;
-      else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') coords = turf.centerOfMass(feature).geometry.coordinates;
-      
-      if (coords) {
-        const id = `${name}-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`;
-        currentFrameTags.add(id);
-        
-        if (!createdCulturalTags.has(id)) {
-          const px = map.project(coords);
-          const buildingLayerIds = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building').map(l=>l.id);
-          let roofHeight = 0;
-          if (buildingLayerIds.length > 0) {
-            const bldgs = map.queryRenderedFeatures(px, { layers: buildingLayerIds });
-            roofHeight = bldgs.length > 0 ? (bldgs[0].properties.render_height || bldgs[0].properties.height || 0) : 0;
-          }
-          const tag = createCulturalTag(name, coords, false, roofHeight);
-          tag.name = id;
-          tag.visible = layerState.labels;
-          culturalTagsGroup.add(tag);
-          createdCulturalTags.add(id);
-        }
+    if (!targetClasses.includes(cls) || !feature.properties.name) continue;
+
+    let coords = null;
+    if (feature.geometry.type === 'Point') coords = feature.geometry.coordinates;
+    else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')
+      coords = turf.centerOfMass(feature).geometry.coordinates;
+    if (!coords) continue;
+
+    const id = `${feature.properties.name}-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`;
+
+    if (!createdCulturalTags.has(id)) {
+      // First time: create tag, height will be refined on subsequent frames
+      const tag = createCulturalTag(feature.properties.name, coords, false, 0);
+      tag.name = id;
+      tag.userData.coords = coords;     // store for re-querying
+      tag.userData.roofHeight = 0;      // will be updated below
+      tag.visible = layerState.labels;
+      culturalTagsGroup.add(tag);
+      createdCulturalTags.add(id);
+    }
+
+    // Every frame: re-query roof height and reposition if we got a better value.
+    // This fixes cases where tiles weren't loaded at creation time.
+    const tagObj = culturalTagsGroup.getObjectByName(id);
+    if (tagObj) {
+      const h = queryRoofHeight(coords);
+      if (h !== tagObj.userData.roofHeight) {
+        tagObj.userData.roofHeight = h;
+        const lp = mercatorFromLngLat(coords[0], coords[1], h);
+        tagObj.position.set(lp.x, lp.y, lp.z);
       }
     }
   }
