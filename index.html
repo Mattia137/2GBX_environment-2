@@ -1045,22 +1045,34 @@ function loadAllGLBs(){
         }
       }
 
-      // Billboard cultural tag text to always face the camera
-      // + Zoom-compensated scaling so labels stay the same screen size
+      // Billboard: make each text label face the camera and stay upright (cylindrical billboard).
+      // camQuat is in Mercator space; labels are in local Three.js scene space (Y-flipped, Rx(90°)).
+      // Instead, compute the orientation entirely in local space:
+      //   screenRight = horizontal axis perpendicular to bearing → (cos(b), 0, sin(b)) in local space
+      //   toCamera    = direction from label world-pos to camera local-pos
+      //   screenUp    = cross(toCamera, screenRight) — tilts to face camera while keeping text upright
       {
-        const bRad = map.getBearing() * Math.PI / 180;
-        const pRad = map.getPitch() * Math.PI / 180;
-        const billboardQuat = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(-pRad, -bRad, 0, 'YXZ')
-        );
+        const camLocalPos = new THREE.Vector3(camX, camY, camZ).applyMatrix4(lInv);
         const zoomScale = Math.pow(2, 16.2 - map.getZoom());
+        // screenRight is the same for every label (depends only on bearing, not tag position)
+        const screenRight = new THREE.Vector3(Math.cos(bearing), 0, Math.sin(bearing));
+        const _toCam = new THREE.Vector3();
+        const _screenUp = new THREE.Vector3();
+        const _basis = new THREE.Matrix4();
+
         culturalTagsGroup.children.forEach(tag => {
           tag.scale.set(zoomScale, zoomScale, zoomScale);
         });
+
         culturalTagsGroup.traverse(child => {
-          if (child.userData && child.userData.isCulturalText) {
-            child.quaternion.copy(billboardQuat);
-          }
+          if (!(child.userData && child.userData.isCulturalText)) return;
+          const childWorld = new THREE.Vector3();
+          child.getWorldPosition(childWorld);
+          _toCam.subVectors(camLocalPos, childWorld).normalize();
+          _screenUp.crossVectors(_toCam, screenRight).normalize();
+          child.quaternion.setFromRotationMatrix(
+            _basis.makeBasis(screenRight, _screenUp, _toCam)
+          );
         });
       }
 
@@ -1707,7 +1719,7 @@ function tickCars(){
   }
 
     if (glbCustomLayer && glbCustomLayer.scene && !trafficInstancedMesh) {
-        const geom = new THREE.BoxGeometry(1, 1, 1);
+        const geom = new THREE.SphereGeometry(1, 16, 16);
         const mat = new THREE.MeshBasicMaterial({color: PARAMS.carColor});
         trafficInstancedMesh = new THREE.InstancedMesh(geom, mat, CFG.NUM_CARS);
         trafficInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -1850,7 +1862,8 @@ function tickCars(){
           // Apply individual dimensions if car len/wid vary (which they do by random in makeCar)
           // Actually, we can just bake the car dimensions into the scale since the base geometry is 1x1x1
           // We use opacity to scale it down slightly as it reaches the edge
-          _dummyObj.scale.set(c.wid * opacity, c.wid * opacity, c.len * opacity);
+          const dotR = c.wid * opacity;
+          _dummyObj.scale.set(dotR, dotR, dotR);
           _dummyObj.updateMatrix();
 
           trafficInstancedMesh.setMatrixAt(instanceIndex, _dummyObj.matrix);
