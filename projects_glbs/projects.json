@@ -2,7 +2,9 @@
   {
     "name": "07_SPIRE",
     "file": "projects_glbs/07_SPIRE.glb",
-    "desc": "Placeholder description for 07_SPIRE. Structural metadata and environmental constraints will be populated here.",
+    "desc": "Interactive art invites engagement through sensors and simulations; it can't be experienced on a screen. We propose a space designed for this work, acting as a reactive entity that experiences its surroundings through technology. This setup reflects the unique patterns autonomous systems can generate from data. The building itself is the interpreter, perceiving the world like latent space. By exposing the space between capture and storage, we invite dialogue on the future of perception and interpretation.",
+ 
+ 
     "link": "https://jacoblehrer.com/projects/programmatic.html"
   },
   {
@@ -20,7 +22,7 @@
   {
     "name": "G15_MEDIA_TOWER",
     "file": "projects_glbs/G15_MEDIA_TOWER.glb",
-    "desc": "Placeholder description for G15_MEDIA_TOWER. Structural metadata and environmental constraints will be populated here.",
+    "desc": "The project organizes its programmatic core into a centralized vertical column which houses the archived data. This structural spine is supported and stabilized by fluid ribbon facades, which wrap the volume to create a dichotomy  between the rigid core and the flowing exterior structure. These ribbons also function as a display for the media housed inside of the archive, actively projecting and displaying the digital media. ",
     "link": "http://hsgleeson.xyz/projects/media/index.html"
   }
 ]
