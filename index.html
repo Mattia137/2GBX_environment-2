@@ -590,9 +590,8 @@ function cleanStyle(s){
 /* ═══ MAP ═══ */
 let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
 let firstPersonActive=false, fpKeys={w:false,a:false,s:false,d:false};
-let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=80;
+let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=85;
 let fpSpeed = 0.023; // m/frame ≈ 1.4 m/s at 60 fps (human walking)
-const FP_SPEED_MIN = 0.005, FP_SPEED_MAX = 2.0;
 let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false};
 let glbCustomLayer=null;
 let powerPopup=null;
@@ -2435,10 +2434,13 @@ function setView(type,el){
       map.scrollZoom.disable();  // scroll wheel controls movement speed instead
       map.dragPan.disable();
       map.dragRotate.disable();
+      // To create the illusion of ground level, zoom must be very high
+      map.setZoom(22);
       // Seed FP position from current map center
       const c = map.getCenter();
       fpLng = c.lng; fpLat = c.lat;
-      fpBearing = map.getBearing(); fpPitch = 80;
+      fpBearing = map.getBearing(); fpPitch = 85;
+      fpSpeed = 0.023;
       applyFPCamera();
     }
     return;
@@ -2480,13 +2482,6 @@ function doFirstPersonMovement() {
   applyFPCamera();
 }
 
-// Scroll wheel → adjust movement speed (does not zoom the map)
-window.addEventListener('wheel', e => {
-  if (!firstPersonActive) return;
-  e.preventDefault();
-  fpSpeed = Math.max(FP_SPEED_MIN, Math.min(FP_SPEED_MAX, fpSpeed * (e.deltaY > 0 ? 0.8 : 1.25)));
-}, { passive: false });
-
 let isFPDragging = false, fpLastMouse = { x: 0, y: 0 };
 window.addEventListener('mousedown', e => {
   if (firstPersonActive && e.button === 0) {
@@ -2500,9 +2495,8 @@ window.addEventListener('mousemove', e => {
   const dx = e.clientX - fpLastMouse.x;
   const dy = e.clientY - fpLastMouse.y;
   fpLastMouse = { x: e.clientX, y: e.clientY };
-  // Mouse right → turn right (bearing +), mouse up (dy < 0) → look up (pitch +)
+  // Mouse right → turn right (bearing +)
   fpBearing += dx * 0.2;
-  fpPitch = Math.max(20, Math.min(85, fpPitch - dy * 0.2));
   applyFPCamera();
 });
 window.addEventListener('mouseup', e => {
