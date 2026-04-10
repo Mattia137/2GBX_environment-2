@@ -1178,6 +1178,18 @@ function loadAllGLBs(){
 
   map.addSource('env-risk-source', { type: 'geojson', data: { type: "FeatureCollection", features: envPoints } });
 
+  // Add parsed OSM vegetation areas
+  map.addSource('osm-vegetation-source', { type: 'geojson', data: 'nyc_parks.geojson' });
+  map.addLayer({
+    id: 'osm-vegetation-layer',
+    type: 'fill',
+    source: 'osm-vegetation-source',
+    paint: {
+      'fill-color': '#2d4c1e',
+      'fill-opacity': 0.85
+    }
+  }, 'building');
+
   map.addLayer({
     id: 'env-risk-heatmap',
     type: 'heatmap',
@@ -2559,6 +2571,7 @@ function toggleLayer(el){
   }
   if(l==='vegetation'){
     if(glbCustomLayer && glbCustomLayer.treeGroup) glbCustomLayer.treeGroup.visible = layerState[l];
+    if(map && map.getLayer('osm-vegetation-layer')) map.setLayoutProperty('osm-vegetation-layer', 'visibility', layerState[l]?'visible':'none');
     if(map) map.triggerRepaint();
   }
 }
