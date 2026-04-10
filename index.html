@@ -592,6 +592,7 @@ let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
 let firstPersonActive=false, fpKeys={w:false,a:false,s:false,d:false};
 let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=85;
 let fpSpeed = 0.023; // m/frame ≈ 1.4 m/s at 60 fps (human walking)
+const FP_SPEED_MIN = 0.005, FP_SPEED_MAX = 2.0;
 let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false};
 let glbCustomLayer=null;
 let powerPopup=null;
@@ -2430,12 +2431,9 @@ function setView(type,el){
   if(type==='1stp'){
     firstPersonActive=true;
     if(map){
-      map.transform.fov = 37.8; // 35mm vertical FOV
       map.scrollZoom.disable();  // scroll wheel controls movement speed instead
       map.dragPan.disable();
       map.dragRotate.disable();
-      // To create the illusion of ground level, zoom must be very high
-      map.setZoom(22);
       // Seed FP position from current map center
       const c = map.getCenter();
       fpLng = c.lng; fpLat = c.lat;
@@ -2458,6 +2456,7 @@ function resetCamera(){setView('perspective',document.querySelector('[data-view=
 // decoupling zoom/center math from position entirely.
 function applyFPCamera() {
   if (!map) return;
+  map.transform.fov = 37.8; // Set 35mm equivalent FOV for first-person
   map.jumpTo({ bearing: fpBearing, pitch: fpPitch, center: [fpLng, fpLat] });
   const opts = map.getFreeCameraOptions();
   opts.position = maplibregl.MercatorCoordinate.fromLngLat({ lng: fpLng, lat: fpLat }, 2.0);
@@ -2481,6 +2480,13 @@ function doFirstPersonMovement() {
   fpLng += (fwd * Math.sin(b) + rgt * Math.cos(b)) * fpSpeed * lngPerMeter;
   applyFPCamera();
 }
+
+// Scroll wheel → adjust movement speed (does not zoom the map)
+window.addEventListener('wheel', e => {
+  if (!firstPersonActive) return;
+  e.preventDefault();
+  fpSpeed = Math.max(FP_SPEED_MIN, Math.min(FP_SPEED_MAX, fpSpeed * (e.deltaY > 0 ? 0.8 : 1.25)));
+}, { passive: false });
 
 let isFPDragging = false, fpLastMouse = { x: 0, y: 0 };
 window.addEventListener('mousedown', e => {
