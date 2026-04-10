@@ -168,9 +168,6 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 .sp-row{display:flex;align-items:center;gap:4px;padding:2px 0}
 .sp-label{color:var(--t4);letter-spacing:1px;text-transform:uppercase;min-width:70px;font-size:7px}
 .sp-val{color:var(--t2);min-width:28px;text-align:right;font-size:7px;font-variant-numeric:tabular-nums}
-.sp-num{width:52px;background:transparent;border:none;border-bottom:1px solid var(--ln3);color:var(--t2);font-size:7px;font-family:'Fragment Mono',monospace;font-variant-numeric:tabular-nums;text-align:right;outline:none;padding:0 2px;-moz-appearance:textfield;appearance:textfield;}
-.sp-num::-webkit-inner-spin-button,.sp-num::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
-.sp-num:focus{border-bottom-color:var(--t3);color:var(--t1)}
 .sp-slider{flex:1;-webkit-appearance:none;appearance:none;height:1px;background:var(--ln3);outline:none;cursor:pointer}
 .sp-slider::-webkit-slider-thumb{-webkit-appearance:none;width:6px;height:6px;border-radius:50%;background:var(--t2);cursor:pointer;border:none}
 .sp-slider::-moz-range-thumb{width:6px;height:6px;border-radius:50%;background:var(--t2);cursor:pointer;border:none}
@@ -247,12 +244,14 @@ svg#glitch-filters{position:absolute;width:0;height:0}
   <div class="hp"><div class="hp-t"><div class="sq on"></div>LAYERS<div style="flex:1"></div><span style="color:var(--t5)">01</span></div>
     <div class="lb on" data-layer="buildings" onclick="toggleLayer(this)"><div class="ind"></div>3D BUILDINGS</div>
     <div class="lb on" data-layer="transit" onclick="toggleLayer(this)"><div class="ind"></div>TRANSIT</div>
-    <div class="lb" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
+    <div class="lb on" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
     <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
-    <div class="lb" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
-    <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div>
+
+
+    <div class="lb on" data-layer="vegetation" onclick="toggleLayer(this)"><div class="ind"></div>VEGETATION</div>
+    <div class="lb on" data-layer="labels" onclick="toggleLayer(this)"><div class="ind"></div>LABELS</div>
     <div class="lb" data-layer="powergrid" onclick="toggleLayer(this)"><div class="ind"></div>POWER GRID</div>
-    <div class="lb on" data-layer="labels" onclick="toggleLayer(this)"><div class="ind"></div>LABELS</div></div>
+    <div class="lb" data-layer="envrisk" onclick="toggleLayer(this)"><div class="ind"></div>ENV RISK HEATMAP</div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
     <div class="vr"><div class="vb on" data-view="perspective" onclick="setView('perspective',this)">PERSP</div><div class="vb" data-view="top" onclick="setView('top',this)">TOP</div><div class="vb" data-view="site" onclick="setView('site',this)">SITE</div><div class="vb" data-view="1stp" onclick="setView('1stp',this)">1ST P.</div></div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>READOUT<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
@@ -302,9 +301,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▾ PROJECT MATERIAL</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-projectColor" value="#141414"><span class="sp-val" id="sv-projectColor">141414</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="number" class="sp-num" id="s-projectOpacity" min="0" max="1" step="0.01" value="0.55"></div>
-      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="number" class="sp-num" id="s-projectMetalness" min="0" max="1" step="0.01" value="0.50"></div>
-      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="number" class="sp-num" id="s-projectRoughness" min="0" max="1" step="0.01" value="0.90"></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-projectOpacity" min="0" max="1" step="0.01" value="0.55"><input type="number" class="sp-num-val" id="sv-projectOpacity" value="0.55" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-projectMetalness" min="0" max="1" step="0.01" value="0.50"><input type="number" class="sp-num-val" id="sv-projectMetalness" value="0.5" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-projectRoughness" min="0" max="1" step="0.01" value="0.90"><input type="number" class="sp-num-val" id="sv-projectRoughness" value="0.9" step="0.01"></div>
     </div>
   </div>
 
@@ -312,9 +311,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ SITE MODELS MATERIAL</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-glbColor" value="#ffffff"><span class="sp-val" id="sv-glbColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="number" class="sp-num" id="s-glbOpacity" min="0" max="1" step="0.01" value="0.35"></div>
-      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="number" class="sp-num" id="s-glbMetalness" min="0" max="1" step="0.01" value="0.10"></div>
-      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="number" class="sp-num" id="s-glbRoughness" min="0" max="1" step="0.01" value="0.80"></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-glbOpacity" min="0" max="1" step="0.01" value="0.35"><input type="number" class="sp-num-val" id="sv-glbOpacity" value="0.35" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-glbMetalness" min="0" max="1" step="0.01" value="0.10"><input type="number" class="sp-num-val" id="sv-glbMetalness" value="0.1" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-glbRoughness" min="0" max="1" step="0.01" value="0.80"><input type="number" class="sp-num-val" id="sv-glbRoughness" value="0.8" step="0.01"></div>
     </div>
   </div>
 
@@ -322,9 +321,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ SUBWAY MATERIAL</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-subwayColor" value="#aa88ff"><span class="sp-val" id="sv-subwayColor">aa88ff</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="number" class="sp-num" id="s-subwayOpacity" min="0" max="1" step="0.01" value="0.80"></div>
-      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="number" class="sp-num" id="s-subwayMetalness" min="0" max="1" step="0.01" value="1.00"></div>
-      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="number" class="sp-num" id="s-subwayRoughness" min="0" max="1" step="0.01" value="1.00"></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-subwayOpacity" min="0" max="1" step="0.01" value="0.80"><input type="number" class="sp-num-val" id="sv-subwayOpacity" value="0.8" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">METALLIC</span><input type="range" class="sp-slider" id="s-subwayMetalness" min="0" max="1" step="0.01" value="1.00"><input type="number" class="sp-num-val" id="sv-subwayMetalness" value="1" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">ROUGH</span><input type="range" class="sp-slider" id="s-subwayRoughness" min="0" max="1" step="0.01" value="1.00"><input type="number" class="sp-num-val" id="sv-subwayRoughness" value="1" step="0.01"></div>
     </div>
   </div>
 
@@ -332,7 +331,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ MAP BUILDINGS</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-buildingColor" value="#ffffff"><span class="sp-val" id="sv-buildingColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="number" class="sp-num" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.10"></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-buildingOpacity" min="0" max="1" step="0.01" value="0.10"><input type="number" class="sp-num-val" id="sv-buildingOpacity" value="0.1" step="0.01"></div>
     </div>
   </div>
 
@@ -340,7 +339,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ MAP STREETS</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-roadColor" value="#ffffff"><span class="sp-val" id="sv-roadColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="number" class="sp-num" id="s-roadOpacity" min="0" max="1" step="0.01" value="0.10"></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-roadOpacity" min="0" max="1" step="0.01" value="0.10"><input type="number" class="sp-num-val" id="sv-roadOpacity" value="0.1" step="0.01"></div>
     </div>
   </div>
 
@@ -348,7 +347,7 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ MAP WATER</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-waterColor" value="#4f4f4f"><span class="sp-val" id="sv-waterColor">4f4f4f</span></div>
-      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="number" class="sp-num" id="s-waterOpacity" min="0" max="1" step="0.01" value="0.40"></div>
+      <div class="sp-row"><span class="sp-label">ALPHA</span><input type="range" class="sp-slider" id="s-waterOpacity" min="0" max="1" step="0.01" value="0.40"><input type="number" class="sp-num-val" id="sv-waterOpacity" value="0.4" step="0.01"></div>
     </div>
   </div>
 
@@ -356,9 +355,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ DIRECTIONAL LIGHT</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-dirColor" value="#ffffff"><span class="sp-val" id="sv-dirColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">INTENSITY</span><input type="number" class="sp-num" id="s-dirIntensity" min="0" max="5" step="0.05" value="1.25"></div>
-      <div class="sp-row"><span class="sp-label">AZIMUTH</span><input type="number" class="sp-num" id="s-dirAzimuth" min="0" max="360" step="1" value="225"></div>
-      <div class="sp-row"><span class="sp-label">ALTITUDE</span><input type="number" class="sp-num" id="s-dirAltitude" min="0" max="90" step="1" value="85"></div>
+      <div class="sp-row"><span class="sp-label">INTENSITY</span><input type="range" class="sp-slider" id="s-dirIntensity" min="0" max="5" step="0.05" value="1.25"><input type="number" class="sp-num-val" id="sv-dirIntensity" value="1.25" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">AZIMUTH</span><input type="range" class="sp-slider" id="s-dirAzimuth" min="0" max="360" step="1" value="225"><input type="number" class="sp-num-val" id="sv-dirAzimuth" value="225" step="1"></div>
+      <div class="sp-row"><span class="sp-label">ALTITUDE</span><input type="range" class="sp-slider" id="s-dirAltitude" min="0" max="90" step="1" value="85"><input type="number" class="sp-num-val" id="sv-dirAltitude" value="85" step="1"></div>
     </div>
   </div>
 
@@ -366,8 +365,8 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="sp-header" onclick="toggleSection(this)">▸ ENV LIGHT</div>
     <div class="sp-body">
       <div class="sp-row"><span class="sp-label">COLOR</span><input type="color" class="sp-color" id="s-ambColor" value="#ffffff"><span class="sp-val" id="sv-ambColor">ffffff</span></div>
-      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="number" class="sp-num" id="s-ambIntensity" min="0" max="3" step="0.05" value="0.90"></div>
-      <div class="sp-row"><span class="sp-label">HEMI</span><input type="number" class="sp-num" id="s-hemiIntensity" min="0" max="3" step="0.05" value="0.05"></div>
+      <div class="sp-row"><span class="sp-label">AMBIENT</span><input type="range" class="sp-slider" id="s-ambIntensity" min="0" max="3" step="0.05" value="0.90"><input type="number" class="sp-num-val" id="sv-ambIntensity" value="0.9" step="0.01"></div>
+      <div class="sp-row"><span class="sp-label">HEMI</span><input type="range" class="sp-slider" id="s-hemiIntensity" min="0" max="3" step="0.05" value="0.05"><input type="number" class="sp-num-val" id="sv-hemiIntensity" value="0.05" step="0.01"></div>
     </div>
   </div>
 </div>
@@ -403,11 +402,11 @@ const PARAMS = {
   glbMetalness: 0.0,
   subwayMaterialColor: 0xaa88ff,
   subwayMaterialOpacity: 1.0,
-  subwayMaterialMetalness: 1.0,
-  subwayMaterialRoughness: 0.7,
+  subwayMaterialMetalness: 0.6,
+  subwayMaterialRoughness: 0.8,
   otherGlbMaterialColor: 0xffffff,
   otherGlbMaterialOpacity: 1.00,
-  otherGlbMaterialMetalness: 0.50,
+  otherGlbMaterialMetalness: 0.10,
   otherGlbMaterialRoughness: 0.80,
   // Project GLB (distinct)
   projectColor: 0x141414,
@@ -577,7 +576,8 @@ function cleanStyle(s){
   s.layers.forEach(l=>{const id=(l.id||'').toLowerCase(),t=l.type;
     if(t==='background'){l.paint={'background-color':PARAMS.backgroundFill};return}
     if(id.includes('water')||id.includes('ocean')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.waterColor,'fill-opacity':PARAMS.waterOpacity};if(t==='line')l.paint={...l.paint,'line-color':'#0c0c10','line-opacity':.3};return}
-    if(id.includes('land')||id.includes('park')||id.includes('grass')||id.includes('wood')||id.includes('vegetation')||id.includes('cemetery')||id.includes('sand')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.landFill,'fill-opacity':PARAMS.landOpacity};return}
+    if(id.includes('park')||id.includes('grass')||id.includes('wood')||id.includes('vegetation')||id.includes('cemetery')){if(t==='fill')l.paint={...l.paint,'fill-color':'#2d4c1e','fill-opacity':0.85};return}
+    if(id.includes('land')||id.includes('sand')){if(t==='fill')l.paint={...l.paint,'fill-color':PARAMS.landFill,'fill-opacity':PARAMS.landOpacity};return}
     if(id.includes('building')){
       if(t==='fill')l.paint={...l.paint,'fill-color':'#ffffff','fill-opacity':PARAMS.buildingOpacity};
       if(t==='fill-extrusion')l.paint={...l.paint,'fill-extrusion-color':'#ffffff','fill-extrusion-opacity':PARAMS.buildingOpacity};
@@ -594,11 +594,10 @@ function cleanStyle(s){
 /* ═══ MAP ═══ */
 let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
 let firstPersonActive=false, fpKeys={w:false,a:false,s:false,d:false};
-let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=90; // 90=horizon
-// 28mm lens on full-frame (36×24mm): vertical FOV = 2*atan(12/28) ≈ 46.4°
-const FP_FOV = 46.4;
+let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=85;
 let fpSpeed = 0.023; // m/frame ≈ 1.4 m/s at 60 fps (human walking)
-let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false,labels:true};
+const FP_SPEED_MIN = 0.005, FP_SPEED_MAX = 2.0;
+let layerState={buildings:true,transit:true,grid:true,glb:true,scanlines:false,'site-marker':true,powergrid:false,labels:true,envrisk:false,vegetation:true};
 let glbCustomLayer=null;
 let powerPopup=null;
 let vectorSourceName='openmaptiles';
@@ -619,6 +618,14 @@ async function initMap(){
     const res=await fetch(`${VERCEL_API}/api/get-style`);if(!res.ok)throw new Error(`API ${res.status}`);
     let style=await res.json();style=cleanStyle(style);
     map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:85});
+    // Intercept scroll wheel on the canvas to control 1st person speed reliably
+    map.getCanvas().addEventListener('wheel', e => {
+      if (!firstPersonActive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      fpSpeed = Math.max(FP_SPEED_MIN, Math.min(FP_SPEED_MAX, fpSpeed * (e.deltaY > 0 ? 0.8 : 1.25)));
+    }, { passive: false });
+
     window.map = map;
     map.on('load',()=>{
 
@@ -802,66 +809,60 @@ function createTextSprite(message) {
 function createCulturalTag(text, lngLat, isSiteMarker=false, roofHeight=0) {
   const group = new THREE.Group();
 
-  // All child positions are relative to the roof level.
-  // The group itself is placed at (lng, lat, roofHeight) in scene space,
-  // so local Y=0 is exactly the roof, local Y=100 is 100m above it.
+  // Inverse pyramid (Cone)
   const sz = PARAMS.culturalPyramidSize;
-
-  // Inverse pyramid (Cone) — sits 100m above roof
   const coneGeo = new THREE.ConeGeometry(sz, sz*2, 4);
-  coneGeo.rotateX(Math.PI); // Invert so tip points down
+  coneGeo.rotateX(Math.PI); // Invert
   const coneMat = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true, transparent: true, opacity: 0.8, depthTest: false});
   const cone = new THREE.Mesh(coneGeo, coneMat);
-  cone.position.y = 100;
+  cone.position.y = roofHeight + 100;
   group.add(cone);
 
-  // Dashed line from cone base down to roof (Y=0)
-  const lineGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 100 - sz, 0),
-    new THREE.Vector3(0, 0, 0)
-  ]);
+  // Dashed line to roof/ground
+  const points = [];
+  points.push(new THREE.Vector3(0, roofHeight + 100 - sz, 0));
+  points.push(new THREE.Vector3(0, roofHeight, 0));
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
   const lineMat = new THREE.LineDashedMaterial({
     color: 0xffffff,
     linewidth: PARAMS.culturalLineWidth,
-    scale: 1, dashSize: 3, gapSize: 3,
-    transparent: true, opacity: 0.5, depthTest: false
+    scale: 1,
+    dashSize: 3,
+    gapSize: 3,
+    transparent: true,
+    opacity: 0.5,
+    depthTest: false
   });
   const line = new THREE.Line(lineGeo, lineMat);
   line.computeLineDistances();
   group.add(line);
 
-  // Text — just above the cone
+  // Text Sprite
   const sprite = createTextSprite(text);
-  sprite.position.y = 100 + sz + 10;
+  // Ensure the text sprite itself sits exactly at roofHeight + 100
+  sprite.position.y = roofHeight + 100;
+
+  // Adjust cone and line so they hang just under the sprite
+  cone.position.y = roofHeight + 100 - (sz + 5);
+  lineGeo.setFromPoints([
+    new THREE.Vector3(0, roofHeight + 100 - (sz + 5) - sz, 0),
+    new THREE.Vector3(0, roofHeight, 0)
+  ]);
   group.add(sprite);
 
-  group.userData = { isSiteMarker, animOffset: Math.random() * Math.PI * 2 };
+  // Animation metadata
+  group.userData = { isSiteMarker, initialY: roofHeight + 100, animOffset: Math.random() * Math.PI * 2 };
 
-  // Place group origin at roof level (roofHeight metres above ground)
-  const lp = mercatorFromLngLat(lngLat[0], lngLat[1], roofHeight);
+  const lp = mercatorFromLngLat(lngLat[0], lngLat[1], 0);
   group.position.set(lp.x, lp.y, lp.z);
 
   return group;
 }
 
-// Returns the building roof height in metres at a given [lng, lat] using
-// queryRenderedFeatures. Returns 0 if no building is found or tiles not loaded.
-function queryRoofHeight(coords) {
-  const px = map.project(coords);
-  const buildingLayerIds = map.getStyle().layers
-    .filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building')
-    .map(l => l.id);
-  if (!buildingLayerIds.length) return 0;
-  const bldgs = map.queryRenderedFeatures(px, { layers: buildingLayerIds });
-  if (!bldgs.length) return 0;
-  // 'height' is the raw OSM metres value; 'render_height' is style-computed and
-  // often unavailable via queryRenderedFeatures — always prefer 'height'.
-  return parseFloat(bldgs[0].properties.height || bldgs[0].properties.render_height || 0);
-}
-
 function updateCulturalTags() {
   if (!map || !glbCustomLayer || !glbCustomLayer.scene) return;
 
+  // Find cultural POIs — try 'poi' source layer, then 'place' as fallback
   let features = [];
   try { features = map.querySourceFeatures(vectorSourceName, { sourceLayer: 'poi' }); } catch(e) {}
   if (features.length === 0) {
@@ -869,38 +870,34 @@ function updateCulturalTags() {
   }
   const targetClasses = ['museum', 'gallery', 'convention_centre', 'theatre', 'arts_centre', 'library', 'attraction', 'artwork'];
 
+  const currentFrameTags = new Set();
+
   for (const feature of features) {
     const cls = feature.properties.class || feature.properties.subclass;
-    if (!targetClasses.includes(cls) || !feature.properties.name) continue;
+    if (targetClasses.includes(cls) && feature.properties.name) {
+      const name = feature.properties.name;
+      // Use coordinates of the feature (usually Point geometry for POI)
+      let coords = null;
+      if (feature.geometry.type === 'Point') coords = feature.geometry.coordinates;
+      else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') coords = turf.centerOfMass(feature).geometry.coordinates;
 
-    let coords = null;
-    if (feature.geometry.type === 'Point') coords = feature.geometry.coordinates;
-    else if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')
-      coords = turf.centerOfMass(feature).geometry.coordinates;
-    if (!coords) continue;
+      if (coords) {
+        const id = `${name}-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`;
+        currentFrameTags.add(id);
 
-    const id = `${feature.properties.name}-${coords[0].toFixed(4)}-${coords[1].toFixed(4)}`;
-
-    if (!createdCulturalTags.has(id)) {
-      // First time: create tag, height will be refined on subsequent frames
-      const tag = createCulturalTag(feature.properties.name, coords, false, 0);
-      tag.name = id;
-      tag.userData.coords = coords;     // store for re-querying
-      tag.userData.roofHeight = 0;      // will be updated below
-      tag.visible = layerState.labels;
-      culturalTagsGroup.add(tag);
-      createdCulturalTags.add(id);
-    }
-
-    // Every frame: re-query roof height and reposition if we got a better value.
-    // This fixes cases where tiles weren't loaded at creation time.
-    const tagObj = culturalTagsGroup.getObjectByName(id);
-    if (tagObj) {
-      const h = queryRoofHeight(coords);
-      if (h !== tagObj.userData.roofHeight) {
-        tagObj.userData.roofHeight = h;
-        const lp = mercatorFromLngLat(coords[0], coords[1], h);
-        tagObj.position.set(lp.x, lp.y, lp.z);
+        if (!createdCulturalTags.has(id)) {
+          const px = map.project(coords);
+          const buildingLayerIds = map.getStyle().layers.filter(l => l.id.includes('building') || l.id.includes('Building') || l['source-layer'] === 'building').map(l=>l.id);
+          let roofHeight = 0;
+          if (buildingLayerIds.length > 0) {
+            const bldgs = map.queryRenderedFeatures(px, { layers: buildingLayerIds });
+            roofHeight = bldgs.length > 0 ? (bldgs[0].properties.render_height || bldgs[0].properties.height || 0) : 0;
+          }
+          const tag = createCulturalTag(name, coords, false, roofHeight);
+          tag.name = id;
+          culturalTagsGroup.add(tag);
+          createdCulturalTags.add(id);
+        }
       }
     }
   }
@@ -953,7 +950,7 @@ function loadAllGLBs(){
       this.gridHelper.material.transparent = true;
       this.gridHelper.material.opacity = PARAMS.gridLineAlpha;
       this.gridHelper.position.y = 0.5; // Slightly above zero to prevent z-fighting with map layer
-      this.gridHelper.visible = false; // Off by default
+      this.gridHelper.visible = true; // On by default
       this.scene.add(this.gridHelper);
 
       // Remote Players Group
@@ -965,6 +962,79 @@ function loadAllGLBs(){
       if (siteMarkerMesh) {
         culturalTagsGroup.add(siteMarkerMesh);
       }
+
+      // Vegetation Instanced Mesh
+      const treeCount = 5000;
+
+      // Simple Tree Geometry
+      const treeGeo = new THREE.BufferGeometry();
+      const trunkGeo = new THREE.CylinderGeometry(0.5, 0.5, 3, 5).toNonIndexed();
+      trunkGeo.translate(0, 1.5, 0); // Base at 0
+
+      const crownGeo = new THREE.ConeGeometry(2, 6, 6).toNonIndexed();
+      crownGeo.translate(0, 5, 0); // On top of trunk
+
+      const trunkColor = new THREE.Color('#3E2723');
+      const crownColor = new THREE.Color('#2E7D32');
+
+      const trunkCols = new Float32Array(trunkGeo.attributes.position.count * 3);
+      for(let i=0;i<trunkCols.length;i+=3){trunkCols[i]=trunkColor.r;trunkCols[i+1]=trunkColor.g;trunkCols[i+2]=trunkColor.b;}
+      trunkGeo.setAttribute('color', new THREE.BufferAttribute(trunkCols, 3));
+
+      const crownCols = new Float32Array(crownGeo.attributes.position.count * 3);
+      for(let i=0;i<crownCols.length;i+=3){crownCols[i]=crownColor.r;crownCols[i+1]=crownColor.g;crownCols[i+2]=crownColor.b;}
+      crownGeo.setAttribute('color', new THREE.BufferAttribute(crownCols, 3));
+
+      // Merge
+      const posArray = new Float32Array(trunkGeo.attributes.position.count*3 + crownGeo.attributes.position.count*3);
+      posArray.set(trunkGeo.attributes.position.array, 0);
+      posArray.set(crownGeo.attributes.position.array, trunkGeo.attributes.position.count*3);
+
+      const colArray = new Float32Array(trunkGeo.attributes.color.count*3 + crownGeo.attributes.color.count*3);
+      colArray.set(trunkGeo.attributes.color.array, 0);
+      colArray.set(crownGeo.attributes.color.array, trunkGeo.attributes.color.count*3);
+
+      const normArray = new Float32Array(trunkGeo.attributes.normal.count*3 + crownGeo.attributes.normal.count*3);
+      normArray.set(trunkGeo.attributes.normal.array, 0);
+      normArray.set(crownGeo.attributes.normal.array, trunkGeo.attributes.normal.count*3);
+
+      treeGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+      treeGeo.setAttribute('color', new THREE.BufferAttribute(colArray, 3));
+      treeGeo.setAttribute('normal', new THREE.BufferAttribute(normArray, 3));
+
+      const treeMat = new THREE.MeshStandardMaterial({vertexColors: true, roughness: 0.9, metalness: 0});
+      this.treeGroup = new THREE.InstancedMesh(treeGeo, treeMat, treeCount);
+
+      // Populate Central Park and High Line roughly
+      const dummy = new THREE.Object3D();
+      for (let i = 0; i < treeCount; i++) {
+        let lng, lat;
+        if (i < 4000) {
+            // Central Park Bounds (approx)
+            lng = -73.973 + (Math.random() * 0.015 - 0.0075);
+            lat = 40.782 + (Math.random() * 0.035 - 0.0175);
+        } else {
+            // High Line Bounds (approx)
+            lng = -74.005 + (Math.random() * 0.004 - 0.002);
+            lat = 40.745 + (Math.random() * 0.01 - 0.005);
+        }
+
+        const mc = maplibregl.MercatorCoordinate.fromLngLat([lng, lat], 0);
+        const mScale = mc.meterInMercatorCoordinateUnits();
+        const og = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
+
+        dummy.position.set((mc.x - og.x) / mScale, 0, (mc.y - og.y) / mScale);
+
+        const scale = 0.5 + Math.random() * 1.5;
+        dummy.scale.set(scale, scale, scale);
+
+        dummy.rotation.y = Math.random() * Math.PI * 2;
+
+        dummy.updateMatrix();
+        this.treeGroup.setMatrixAt(i, dummy.matrix);
+      }
+      this.scene.add(this.treeGroup);
+
     },
     render(gl, matrix){
       // Correct matrix order: MapProjection * (Translation * Scale * Rotation)
@@ -1069,34 +1139,18 @@ function loadAllGLBs(){
         }
       }
 
-      // Billboard: make each text label face the camera and stay upright (cylindrical billboard).
-      // camQuat is in Mercator space; labels are in local Three.js scene space (Y-flipped, Rx(90°)).
-      // Instead, compute the orientation entirely in local space:
-      //   screenRight = horizontal axis perpendicular to bearing → (cos(b), 0, sin(b)) in local space
-      //   toCamera    = direction from label world-pos to camera local-pos
-      //   screenUp    = cross(toCamera, screenRight) — tilts to face camera while keeping text upright
+      // Billboard cultural tag text to always face the camera
+      // + Zoom-compensated scaling so labels stay the same screen size
       {
-        const camLocalPos = new THREE.Vector3(camX, camY, camZ).applyMatrix4(lInv);
         const zoomScale = Math.pow(2, 16.2 - map.getZoom());
-        // screenRight is the same for every label (depends only on bearing, not tag position)
-        const screenRight = new THREE.Vector3(Math.cos(bearing), 0, Math.sin(bearing));
-        const _toCam = new THREE.Vector3();
-        const _screenUp = new THREE.Vector3();
-        const _basis = new THREE.Matrix4();
-
         culturalTagsGroup.children.forEach(tag => {
           tag.scale.set(zoomScale, zoomScale, zoomScale);
         });
-
         culturalTagsGroup.traverse(child => {
-          if (!(child.userData && child.userData.isCulturalText)) return;
-          const childWorld = new THREE.Vector3();
-          child.getWorldPosition(childWorld);
-          _toCam.subVectors(camLocalPos, childWorld).normalize();
-          _screenUp.crossVectors(_toCam, screenRight).normalize();
-          child.quaternion.setFromRotationMatrix(
-            _basis.makeBasis(screenRight, _screenUp, _toCam)
-          );
+          if (child.userData && child.userData.isCulturalText) {
+            // Directly look at camera for perfect orientation in all views
+            child.lookAt(this.camera.position);
+          }
         });
       }
 
@@ -1108,6 +1162,56 @@ function loadAllGLBs(){
   
   // Custom Power Grid Overlay Pipeline
   powerPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+
+  // PROCEDURAL ENVIRONMENTAL RISK DATA (Water & Air Pollution hot zones)
+  const envPoints = [];
+  // Native GeoJSON generation to avoid strict dependency injection issues if turf isn't perfectly loaded
+  function makePoint(lng, lat, risk) {
+      return { type: "Feature", geometry: { type: "Point", coordinates: [lng, lat] }, properties: { risk } };
+  }
+  // Cluster around Hudson River (water risk)
+  for(let i=0; i<300; i++) envPoints.push(makePoint(-74.015 + (Math.random()*0.005), 40.73 + (Math.random()*0.05), Math.random()));
+  // Cluster around East River (water risk)
+  for(let i=0; i<300; i++) envPoints.push(makePoint(-73.970 + (Math.random()*0.01), 40.71 + (Math.random()*0.06), Math.random()));
+  // Cluster around major avenues and industrial (air risk)
+  for(let i=0; i<600; i++) envPoints.push(makePoint(-74.005 + (Math.random()*0.02), 40.75 + (Math.random()*0.04), Math.random()));
+
+  map.addSource('env-risk-source', { type: 'geojson', data: { type: "FeatureCollection", features: envPoints } });
+
+  // Add parsed OSM vegetation areas
+  map.addSource('osm-vegetation-source', { type: 'geojson', data: 'nyc_parks.geojson' });
+  map.addLayer({
+    id: 'osm-vegetation-layer',
+    type: 'fill',
+    source: 'osm-vegetation-source',
+    paint: {
+      'fill-color': '#2d4c1e',
+      'fill-opacity': 0.85
+    }
+  }, 'building');
+
+  map.addLayer({
+    id: 'env-risk-heatmap',
+    type: 'heatmap',
+    source: 'env-risk-source',
+    layout: { visibility: 'none' },
+    paint: {
+      'heatmap-weight': ['interpolate', ['linear'], ['get', 'risk'], 0, 0, 1, 1],
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 11, 1, 15, 3],
+      'heatmap-color': [
+        'interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)',
+        0.2, 'rgba(0,255,255,0.4)',
+        0.4, 'rgba(0,255,0,0.6)',
+        0.6, 'rgba(255,255,0,0.8)',
+        0.8, 'rgba(255,128,0,0.9)',
+        1, 'rgba(255,0,0,1)'
+      ],
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 11, 15, 15, 40],
+      'heatmap-opacity': 0.8
+    }
+  }, 'building');
+
   map.addSource('power-grid-source', { type: 'geojson', data: 'nyc_power_grid.geojson' });
 
   // Heatmaps
@@ -1244,11 +1348,11 @@ fetch('projects_glbs/projects.json').then(r => {
 
 // Preview Scene Setup
 let previewScene = new THREE.Scene();
-let previewCamera = new THREE.PerspectiveCamera(45, 230 / 140, 0.1, 10000);
-previewCamera.position.set(0, 0, 1); // repositioned per-model after fit
-previewCamera.lookAt(0, 0, 0);
+let previewCamera = new THREE.PerspectiveCamera(45, 230 / 140, 0.1, 1000);
+previewCamera.position.set(200, 200, 200);
+previewCamera.lookAt(0, 50, 0);
 let previewRenderer = null;
-let previewModel = null; // the pivot group that rotates
+let previewModel = null;
 
 function initPreviewRenderer() {
   const canvas = document.getElementById('project-canvas');
@@ -1280,7 +1384,6 @@ function loadActiveProject(filepath) {
   }
   if (previewModel && previewScene) {
     previewScene.remove(previewModel);
-    previewModel.traverse(ch => { if (ch.isMesh && ch.material) ch.material.dispose(); });
     previewModel = null;
   }
 
@@ -1309,42 +1412,37 @@ function loadActiveProject(filepath) {
     }
     
     // Wireframe Preview setup
-    const wireClone = activeProjectMesh.clone();
-    wireClone.traverse(ch => {
+    previewModel = activeProjectMesh.clone();
+    previewModel.traverse(ch => {
       if (ch.isMesh) {
         ch.material = new THREE.MeshBasicMaterial({
-          color: 0xffffff, wireframe: true, transparent: true, opacity: 0.35
+          color: 0xffffff,
+          wireframe: true,
+          wireframeLinewidth: 1,
+          transparent: true,
+          opacity: 0.3
         });
       }
     });
-
-    // Compute bounding box of the clone in world space
-    const box = new THREE.Box3().setFromObject(wireClone);
+    // Center it exactly in the preview scene around its volumetric center
+    const box = new THREE.Box3().setFromObject(previewModel);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
 
-    // Offset the mesh so its volume center sits at the pivot origin
-    wireClone.position.sub(center);
+    // Scale to fit the preview box (assuming the preview bounds are around 150 units)
+    const scaleFit = 150 / maxDim;
+    previewModel.scale.set(scaleFit, scaleFit, scaleFit);
 
-    // Wrap in a pivot group — rotating this group spins around the volume center
+    // Use a Pivot group to safely rotate the model around its true center
+    previewModel.position.set(-center.x * scaleFit, -center.y * scaleFit, -center.z * scaleFit);
+
+    // The previous previewModel variable needs to point to the pivot
+    // so the update loop rotates the pivot, not the mesh directly
     const pivot = new THREE.Group();
-    pivot.add(wireClone);
+    pivot.add(previewModel);
+    previewModel = pivot; // Assign the pivot to the global variable used in the render loop
 
-    // Scale to fit a normalised unit cube, then apply a fixed preview scale
-    const maxDim = Math.max(size.x, size.y, size.z) || 1;
-    const previewSize = 80; // preview scene units
-    pivot.scale.setScalar(previewSize / maxDim);
-
-    // Position camera to frame the object: pull back based on FOV
-    const fovRad = previewCamera.fov * Math.PI / 180;
-    const dist = (previewSize / 2) / Math.tan(fovRad / 2) * 1.6;
-    previewCamera.position.set(dist * 0.6, dist * 0.4, dist);
-    previewCamera.lookAt(0, 0, 0);
-    previewCamera.near = dist * 0.01;
-    previewCamera.far = dist * 10;
-    previewCamera.updateProjectionMatrix();
-
-    previewModel = pivot;
     previewScene.add(previewModel);
 
   }, undefined, (e) => {
@@ -1761,8 +1859,9 @@ function tickCars(){
   }
 
     if (glbCustomLayer && glbCustomLayer.scene && !trafficInstancedMesh) {
-        const geom = new THREE.SphereGeometry(1, 16, 16);
-        const mat = new THREE.MeshBasicMaterial({color: PARAMS.carColor});
+        // Changed to red dots per user request
+        const geom = new THREE.SphereGeometry(1.5, 8, 8);
+        const mat = new THREE.MeshBasicMaterial({color: 0xff0000});
         trafficInstancedMesh = new THREE.InstancedMesh(geom, mat, CFG.NUM_CARS);
         trafficInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         trafficGroup.add(trafficInstancedMesh);
@@ -1904,8 +2003,7 @@ function tickCars(){
           // Apply individual dimensions if car len/wid vary (which they do by random in makeCar)
           // Actually, we can just bake the car dimensions into the scale since the base geometry is 1x1x1
           // We use opacity to scale it down slightly as it reaches the edge
-          const dotR = c.wid * opacity;
-          _dummyObj.scale.set(dotR, dotR, dotR);
+          _dummyObj.scale.set(c.wid * opacity, c.wid * opacity, c.len * opacity);
           _dummyObj.updateMatrix();
 
           trafficInstancedMesh.setMatrixAt(instanceIndex, _dummyObj.matrix);
@@ -2465,9 +2563,15 @@ function toggleLayer(el){
     if(map) map.triggerRepaint();
   }
   if(l==='labels'){
-    culturalTagsGroup.visible = layerState[l];
-    // site marker lives inside culturalTagsGroup; re-apply its own toggle on top
-    if(siteMarkerMesh) siteMarkerMesh.visible = layerState[l] && layerState['site-marker'];
+    if(culturalTagsGroup) culturalTagsGroup.visible = layerState[l];
+    if(map) map.triggerRepaint();
+  }
+  if(l==='envrisk'&&map){
+    if(map.getLayer('env-risk-heatmap')) map.setLayoutProperty('env-risk-heatmap', 'visibility', layerState[l]?'visible':'none');
+  }
+  if(l==='vegetation'){
+    if(glbCustomLayer && glbCustomLayer.treeGroup) glbCustomLayer.treeGroup.visible = layerState[l];
+    if(map && map.getLayer('osm-vegetation-layer')) map.setLayoutProperty('osm-vegetation-layer', 'visibility', layerState[l]?'visible':'none');
     if(map) map.triggerRepaint();
   }
 }
@@ -2491,14 +2595,13 @@ function setView(type,el){
   if(type==='1stp'){
     firstPersonActive=true;
     if(map){
-      map.transform.fov = FP_FOV; // 28mm vertical FOV
-      map.scrollZoom.disable();   // scroll wheel controls movement speed instead
+      map.scrollZoom.disable();  // scroll wheel controls movement speed instead
       map.dragPan.disable();
       map.dragRotate.disable();
       // Seed FP position from current map center
       const c = map.getCenter();
       fpLng = c.lng; fpLat = c.lat;
-      fpBearing = map.getBearing(); fpPitch = 90; // start at horizon
+      fpBearing = map.getBearing(); fpPitch = 85;
       fpSpeed = 0.023;
       applyFPCamera();
     }
@@ -2511,16 +2614,16 @@ function setView(type,el){
 }
 function resetCamera(){setView('perspective',document.querySelector('[data-view="perspective"]'))}
 
-// Apply the current FP state to the MapLibre camera via FreeCameraOptions.
-// setPitchBearing sets the orientation quaternion directly, bypassing MapLibre's
-// internal 85° pitch clamp — enabling full 360° vertical look (0=down, 90=horizon, 180=up).
-// Position is pinned to exactly 2m above ground, independent of zoom math.
+// Apply the current FP state (fpLng/fpLat/fpBearing/fpPitch) to the MapLibre camera.
+// jumpTo lets MapLibre compute the correct camera orientation for bearing+pitch,
+// then setFreeCameraOptions pins the eye position to exactly 2m above ground —
+// decoupling zoom/center math from position entirely.
 function applyFPCamera() {
   if (!map) return;
-  map.transform.fov = FP_FOV; // keep 28mm FOV — setFreeCameraOptions doesn't reset it
+  map.transform.fov = 37.8; // Set 35mm equivalent FOV for first-person
+  map.jumpTo({ bearing: fpBearing, pitch: fpPitch, center: [fpLng, fpLat] });
   const opts = map.getFreeCameraOptions();
-  opts.position = maplibregl.MercatorCoordinate.fromLngLat({ lng: fpLng, lat: fpLat }, 2.0);
-  opts.setPitchBearing(fpPitch, fpBearing); // no pitch clamp — full 0–180° range
+  opts.position = maplibregl.MercatorCoordinate.fromLngLat({ lng: fpLng, lat: fpLat }, 1.6);
   map.setFreeCameraOptions(opts);
 }
 
@@ -2542,6 +2645,7 @@ function doFirstPersonMovement() {
   applyFPCamera();
 }
 
+
 let isFPDragging = false, fpLastMouse = { x: 0, y: 0 };
 window.addEventListener('mousedown', e => {
   if (firstPersonActive && e.button === 0) {
@@ -2555,8 +2659,8 @@ window.addEventListener('mousemove', e => {
   const dx = e.clientX - fpLastMouse.x;
   const dy = e.clientY - fpLastMouse.y;
   fpLastMouse = { x: e.clientX, y: e.clientY };
-  fpBearing += dx * 0.2;                             // left/right yaw
-  fpPitch = Math.max(1, Math.min(179, fpPitch - dy * 0.2)); // up/down, clamped away from poles
+  // Mouse right → turn right (bearing +)
+  fpBearing += dx * 0.2;
   applyFPCamera();
 });
 window.addEventListener('mouseup', e => {
@@ -2700,7 +2804,8 @@ function updateSubwayMaterial() {
 }
 
 function updateCarMaterial() {
-  if (trafficGroup) trafficGroup.children.forEach(mesh => { if (mesh && mesh.material) mesh.material.color.setHex(PARAMS.carColor); });
+  // Overridden: Cars are explicitly red dots now
+  if (trafficGroup) trafficGroup.children.forEach(mesh => { if (mesh && mesh.material) mesh.material.color.setHex(0xff0000); });
 }
 
 function updateWaterStyle() {
@@ -2780,18 +2885,35 @@ function setupSettingsPanel() {
   function wire(id, param, fmt, cb, isColor) {
     const el = document.getElementById(id);
     if (!el) return;
+    const valId = 'sv-' + id.slice(2);
+    const valEl = document.getElementById(valId);
     if (isColor) {
       el.addEventListener('input', e => {
         PARAMS[param] = parseInt(e.target.value.slice(1), 16);
-        cb(); if (map) map.triggerRepaint();
+        if (valEl) valEl.textContent = e.target.value.slice(1);
+        cb();
+        if (map) map.triggerRepaint();
       });
     } else {
+      // Range slider updates Number input
       el.addEventListener('input', () => {
-        const v = Math.min(parseFloat(el.max), Math.max(parseFloat(el.min), parseFloat(el.value) || 0));
+        const v = parseFloat(el.value);
         PARAMS[param] = v;
-        cb(); if (map) map.triggerRepaint();
+        if (valEl) valEl.value = v;
+        cb();
+        if (map) map.triggerRepaint();
       });
-      el.addEventListener('keydown', e => e.stopPropagation());
+      // Number input updates Range slider
+      if (valEl) {
+          valEl.addEventListener('input', () => {
+              const v = parseFloat(valEl.value);
+              if(isNaN(v)) return;
+              PARAMS[param] = v;
+              el.value = v;
+              cb();
+              if (map) map.triggerRepaint();
+          });
+      }
     }
   }
   function wireColorStr(id, param, cb) {
@@ -2805,7 +2927,8 @@ function setupSettingsPanel() {
       cb();
     });
   }
-  const f2 = null, f0 = null; // unused — number inputs handle display natively
+  const f2 = v => v.toFixed(2);
+  const f0 = v => v.toFixed(0) + '°';
 
   // PROJECT MATERIAL
   wire('s-projectColor',    'projectColor',    null,   updateProjectMaterial, true);
