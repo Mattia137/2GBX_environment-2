@@ -2459,7 +2459,7 @@ function applyFPCamera() {
   map.transform.fov = 37.8; // Set 35mm equivalent FOV for first-person
   map.jumpTo({ bearing: fpBearing, pitch: fpPitch, center: [fpLng, fpLat] });
   const opts = map.getFreeCameraOptions();
-  opts.position = maplibregl.MercatorCoordinate.fromLngLat({ lng: fpLng, lat: fpLat }, 2.0);
+  opts.position = maplibregl.MercatorCoordinate.fromLngLat({ lng: fpLng, lat: fpLat }, 1.6);
   map.setFreeCameraOptions(opts);
 }
 
