@@ -630,7 +630,7 @@ async function initMap(){
   try{
     const res=await fetch(`${VERCEL_API}/api/get-style`);if(!res.ok)throw new Error(`API ${res.status}`);
     let style=await res.json();style=cleanStyle(style);
-    map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:85});
+    map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:85, canvasContextAttributes: { powerPreference: 'high-performance' }});
     window.map = map;
     map.on('load',()=>{
 
@@ -673,36 +673,56 @@ async function initMap(){
       const updateBuildingFilter = () => {
         if (updateTimeout) clearTimeout(updateTimeout);
         updateTimeout = setTimeout(() => {
-          const features = map.queryRenderedFeatures({ layers: buildingLayers.map(l => l.id) });
+          // Project the 3D footprint into screen space to query only local features,
+          // instead of querying thousands of buildings on the entire screen.
+          const coords = excludePolygon.geometry.coordinates[0];
+          const screenCoords = coords.map(c => map.project(c));
+          const minX = Math.min(...screenCoords.map(p => p.x));
+          const maxX = Math.max(...screenCoords.map(p => p.x));
+          const minY = Math.min(...screenCoords.map(p => p.y));
+          const maxY = Math.max(...screenCoords.map(p => p.y));
+
+          let features = [];
+          try {
+            features = map.queryRenderedFeatures(
+              [[minX, minY], [maxX, maxY]], 
+              { layers: buildingLayers.map(l => l.id) }
+            );
+          } catch(e) {
+            return;
+          }
+          
+          // Pre-extract LngLat boundaries for O(1) float overlap checks, no Turf needed
+          const minLng = -74.009249;
+          const maxLng = -73.999122;
+          const minLat = 40.749640;
+          const maxLat = 40.757311;
+
           let newlyHidden = false;
           
           for (const feature of features) {
             const hasId = feature.id != null;
-
             if (hasId && hiddenIds.has(feature.id)) continue;
 
-            // Signature fallback for missing IDs (specifically targeting MapTiler's 3D buildings)
             let signature = null;
             if (!hasId) {
               const h = feature.properties.render_height;
               const mh = feature.properties.render_min_height;
               if (h !== undefined) {
                 signature = { h, mh: mh || 0 };
-                // Skip if we already hid this signature
                 if (hiddenSignatures.some(s => s.h === signature.h && s.mh === signature.mh)) continue;
-              } else {
-                continue; // Cannot identify feature reliably
-              }
+              } else continue;
             }
             
             let intersects = false;
             try {
-              if (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon') {
-                intersects = turf.booleanIntersects(feature, excludePolygon);
+              if (feature.geometry && feature.geometry.coordinates && feature.geometry.coordinates[0] && feature.geometry.coordinates[0][0]) {
+                const coord = Array.isArray(feature.geometry.coordinates[0][0]) ? feature.geometry.coordinates[0][0] : feature.geometry.coordinates[0];
+                const pt = Array.isArray(coord[0]) ? coord[0] : coord;
+                const lng = pt[0], lat = pt[1];
+                if (lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat) intersects = true;
               }
-            } catch (e) {
-              // Ignore intersection errors
-            }
+            } catch (e) {}
 
             if (intersects) {
               if (hasId) {
@@ -764,11 +784,16 @@ async function initMap(){
       }
 
       // Attempt building traffic graph when style/source data loaded
+      let _culturalTagsTimer = null;
+      function scheduleCulturalTagsUpdate() {
+        clearTimeout(_culturalTagsTimer);
+        _culturalTagsTimer = setTimeout(updateCulturalTags, 300);
+      }
       map.on('idle', () => {
          if (!graphBuilt) {
             buildGraphFromMapTiler();
          }
-         updateCulturalTags();
+         scheduleCulturalTagsUpdate();
       });
 
       // Fog
@@ -777,7 +802,8 @@ async function initMap(){
       loadAllGLBs();initTransit();initVegetation();initEnvRisk();startHUD();
     });
     map.on('move',updateMapHUD);
-    map.on('moveend', updateCulturalTags);
+    let _moveEndTimer = null;
+    map.on('moveend', () => { clearTimeout(_moveEndTimer); _moveEndTimer = setTimeout(updateCulturalTags, 300); });
     if(map.isStyleLoaded()) updateCulturalTags();
   }catch(err){console.error(err);document.getElementById('error-msg').textContent='MAP LOAD: '+err.message;document.getElementById('error-msg').style.display='block';}
 }
@@ -926,6 +952,26 @@ function addSiteMarker(){
   // Ensure we add it after layer is init, we will hook it up in onAdd
 }
 
+/* ═══ RENDER-LOOP SCRATCH OBJECTS (reused every frame, never re-allocated) ═══ */
+const _renderM  = new THREE.Matrix4();
+const _renderL  = new THREE.Matrix4();
+const _renderLInv = new THREE.Matrix4();
+const _renderCamQuat = new THREE.Quaternion();
+const _renderCamLocalPos = new THREE.Vector3();
+const _renderScreenRight = new THREE.Vector3();
+const _renderToCam  = new THREE.Vector3();
+const _renderScreenUp = new THREE.Vector3();
+const _renderBasis  = new THREE.Matrix4();
+const _renderChildWorld = new THREE.Vector3();
+const _renderMercFwd = new THREE.Vector3(0, 0, -1);
+const _renderMercUp  = new THREE.Vector3(0, 1, 0);
+
+const _dummyRenderObj = new THREE.Object3D();
+const _dummyPos = new THREE.Vector3();
+const _dummyQuat = new THREE.Quaternion();
+const _dummyScale = new THREE.Vector3();
+const _dummyYAxis = new THREE.Vector3(0, 1, 0);
+
 /* ═══ GLB LOADER — ALL FILES VIA CUSTOM LAYER ═══ */
 function loadAllGLBs(){
   const mc = maplibregl.MercatorCoordinate.fromLngLat([GLB_ORIGIN.lng, GLB_ORIGIN.lat], 0);
@@ -956,6 +1002,7 @@ function loadAllGLBs(){
         antialias: true
       });
       this.renderer.autoClear = false;
+      this.renderer.sortObjects = false;
       this.renderer.shadowMap.enabled = shadowsEnabled;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -1022,7 +1069,8 @@ function loadAllGLBs(){
       // Since Three.js camera looks down -Z which translates to +Y,
       // we must rotate 180 degrees (Math.PI) to point North, and then apply positive bearing rotation
       // instead of negative because of the reflected axis space.
-      const camQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, bearing + Math.PI, 'ZYX'));
+      _renderCamQuat.setFromEuler(new THREE.Euler(pitch, 0, bearing + Math.PI, 'ZYX'));
+      const camQuat = _renderCamQuat;
 
       // We broadcast raw mercator coordinates so all clients are anchored perfectly to the exact same global coordinate space.
       // Round to 8 decimal places (approx millimeter precision in mercator) to reduce Liveblocks payload
@@ -1039,13 +1087,14 @@ function loadAllGLBs(){
       };
 
       // We need lInv to position remote meshes in our local scene space
-      let lInv = new THREE.Matrix4().copy(l).invert();
+      _renderLInv.copy(l).invert();
+      let lInv = _renderLInv;
 
       // Interpolate remote players
       if (remotePlayerMeshes && remotePlayerMeshes.size > 0 && lInv) {
-        // Define base directional vectors in Mercator space (standard Three.js camera looks down -Z)
-        const mercatorForward = new THREE.Vector3(0, 0, -1);
-        const mercatorUp = new THREE.Vector3(0, 1, 0);
+        // Reuse pre-allocated scratch vectors for the constant directional bases
+        const mercatorForward = _renderMercFwd;
+        const mercatorUp = _renderMercUp;
 
         for (const [id, mesh] of remotePlayerMeshes.entries()) {
           if (mesh.userData.mercatorTargetPos && mesh.userData.mercatorTargetRot) {
@@ -1062,12 +1111,12 @@ function loadAllGLBs(){
             const localFwd = fwd.transformDirection(lInv);
             const localUp = up.transformDirection(lInv);
 
-            // Create a dummy object to construct the target orientation
-            const dummy = new THREE.Object3D();
+            // Reuse dummy object
+            const dummy = _dummyRenderObj;
             dummy.position.copy(localTargetPos);
             dummy.up.copy(localUp);
-            // Look along the forward vector from the current position
-            dummy.lookAt(localTargetPos.clone().add(localFwd));
+            _renderChildWorld.copy(localTargetPos).add(localFwd);
+            dummy.lookAt(_renderChildWorld);
 
             if (mesh.userData.firstFrame) {
               mesh.position.copy(localTargetPos);
@@ -1088,13 +1137,10 @@ function loadAllGLBs(){
       //   toCamera    = direction from label world-pos to camera local-pos
       //   screenUp    = cross(toCamera, screenRight) — tilts to face camera while keeping text upright
       {
-        const camLocalPos = new THREE.Vector3(camX, camY, camZ).applyMatrix4(lInv);
+        _renderCamLocalPos.set(camX, camY, camZ).applyMatrix4(lInv);
         const zoomScale = Math.pow(2, 16.2 - map.getZoom());
         // screenRight is the same for every label (depends only on bearing, not tag position)
-        const screenRight = new THREE.Vector3(Math.cos(bearing), 0, Math.sin(bearing));
-        const _toCam = new THREE.Vector3();
-        const _screenUp = new THREE.Vector3();
-        const _basis = new THREE.Matrix4();
+        _renderScreenRight.set(Math.cos(bearing), 0, Math.sin(bearing));
 
         culturalTagsGroup.children.forEach(tag => {
           tag.scale.set(zoomScale, zoomScale, zoomScale);
@@ -1102,19 +1148,17 @@ function loadAllGLBs(){
 
         culturalTagsGroup.traverse(child => {
           if (!(child.userData && child.userData.isCulturalText)) return;
-          const childWorld = new THREE.Vector3();
-          child.getWorldPosition(childWorld);
-          _toCam.subVectors(camLocalPos, childWorld).normalize();
-          _screenUp.crossVectors(_toCam, screenRight).normalize();
+          child.getWorldPosition(_renderChildWorld);
+          _renderToCam.subVectors(_renderCamLocalPos, _renderChildWorld).normalize();
+          _renderScreenUp.crossVectors(_renderToCam, _renderScreenRight).normalize();
           child.quaternion.setFromRotationMatrix(
-            _basis.makeBasis(screenRight, _screenUp, _toCam)
+            _renderBasis.makeBasis(_renderScreenRight, _renderScreenUp, _renderToCam)
           );
         });
       }
 
       this.renderer.resetState();
       this.renderer.render(this.scene, this.camera);
-      map.triggerRepaint();
     }
   };
   
@@ -1197,6 +1241,8 @@ function loadAllGLBs(){
       const model = gltf.scene; model.name = filename;
       const isSubway = filename === 'subway_system.glb';
       model.traverse(ch => {
+        ch.matrixAutoUpdate = false;
+        ch.updateMatrixWorld();
         if (ch.isMesh) {
           ch.frustumCulled = false; // base THREE.Camera uses MapLibre's matrix — standard frustum culling is unreliable
           ch.castShadow = shadowsEnabled;
@@ -1206,7 +1252,7 @@ function loadAllGLBs(){
               color: PARAMS.transitGroupColors.subway,
               transparent: false,
               opacity: 1.0,
-              side: THREE.DoubleSide
+              side: THREE.FrontSide
             });
           } else {
             ch.material = new THREE.MeshStandardMaterial({
@@ -1215,7 +1261,7 @@ function loadAllGLBs(){
               opacity: 0.70,
               roughness: 0.8,
               metalness: 0.5,
-              side: THREE.DoubleSide
+              side: THREE.FrontSide
             });
           }
         }
@@ -1264,7 +1310,7 @@ let previewModel = null; // the pivot group that rotates
 
 function initPreviewRenderer() {
   const canvas = document.getElementById('project-canvas');
-  previewRenderer = new THREE.WebGLRenderer({canvas: canvas, alpha: true, antialias: true});
+  previewRenderer = new THREE.WebGLRenderer({canvas: canvas, alpha: true, antialias: true, powerPreference: "high-performance"});
   previewRenderer.setSize(230, 140);
   
   // Basic lighting for wireframe/lines
@@ -1302,6 +1348,8 @@ function loadActiveProject(filepath) {
 
     activeProjectMesh = gltf.scene;
     activeProjectMesh.traverse(ch => {
+      ch.matrixAutoUpdate = false;
+      ch.updateMatrixWorld();
       if (ch.isMesh) {
         ch.frustumCulled = false;
         ch.castShadow = shadowsEnabled;
@@ -1312,7 +1360,7 @@ function loadActiveProject(filepath) {
           opacity: PARAMS.projectOpacity,
           roughness: 0.5,
           metalness: 0.0,
-          side: THREE.DoubleSide
+          side: THREE.FrontSide
         });
       }
     });
@@ -1417,6 +1465,15 @@ const CFG = {
   FADE_RADIUS_KM: 0.8
 };
 const cars=[];let carId=0;
+
+// Pre-computed SITE position in local scene space — set once after map loads
+// Used for fast Euclidean fade-distance checks instead of haversine per car per tick
+let SITE_LOCAL_X = 0, SITE_LOCAL_Y = 0;
+const FADE_INNER_M = (CFG.FADE_RADIUS_KM - 0.2) * 1000; // meters
+const FADE_OUTER_M = CFG.FADE_RADIUS_KM * 1000;
+const FADE_INNER_SQ = FADE_INNER_M * FADE_INNER_M;
+const FADE_OUTER_SQ = FADE_OUTER_M * FADE_OUTER_M;
+const FADE_BAND_M = FADE_OUTER_M - FADE_INNER_M; // 200m
 
 // Dynamic Graph Structures
 let nodes=[],nodeMap={},adjList=[],edgeSet=[];
@@ -1555,35 +1612,40 @@ function buildGraphFromMapTiler() {
   }
 
   graphBuilt = true;
+  // Pre-compute SITE in local space for cheap Euclidean fade-distance checks
+  const _siteLp = mercatorFromLngLat(SITE.lng, SITE.lat, 0);
+  SITE_LOCAL_X = _siteLp.x;
+  SITE_LOCAL_Y = _siteLp.z;
   console.log("Traffic graph built:", nodes.length, "nodes,", edgeSet.length, "edges.");
 }
 
-function lanePos(fromId, toId, t, laneIdx){
+function lanePos(fromId, toId, t, laneIdx, laneOffset){
   const a=nodes[fromId], b=nodes[toId];
   const dx=b.x-a.x, dy=b.y-a.y;
   const len=Math.sqrt(dx*dx+dy*dy)||1;
   const nx=-dy/len, ny=dx/len; // normal vector for offset
 
-  // simple offset logic based on laneIdx
-  const edgeInfo = adjList[fromId].find(e=>e.to===toId);
-  const lanes = edgeInfo ? edgeInfo.laneCount : 1;
-  const isOneWay = !adjList[toId].some(e=>e.to===fromId);
-
-  let offset = 0;
-  const laneW = CFG.ST_LANE;
-  if(isOneWay) {
-      offset = (laneIdx - (lanes-1)/2) * laneW;
-  } else {
-      offset = (laneIdx + 0.5) * laneW;
+  let offset = laneOffset;
+  if(offset === undefined){
+    // compute offset (only done on edge/lane change, not hot path)
+    const edgeInfo = adjList[fromId].find(e=>e.to===toId);
+    const lanes = edgeInfo ? edgeInfo.laneCount : 1;
+    const isOneWay = !adjList[toId].some(e=>e.to===fromId);
+    offset = isOneWay ? (laneIdx - (lanes-1)/2) * CFG.ST_LANE : (laneIdx + 0.5) * CFG.ST_LANE;
   }
 
   return {
       x: a.x + dx*t + nx*offset,
       y: a.y + dy*t + ny*offset,
-      angle: Math.atan2(dy, dx),
-      lng: a.lng + (b.lng - a.lng)*t, // interpolate approx lat/lng
+      lng: a.lng + (b.lng - a.lng)*t,
       lat: a.lat + (b.lat - a.lat)*t
   };
+}
+function computeLaneOffset(c){
+  const edgeInfo = adjList[c.from].find(e=>e.to===c.to);
+  const lanes = edgeInfo ? edgeInfo.laneCount : 1;
+  const isOneWay = !adjList[c.to].some(e=>e.to===c.from);
+  c.laneOffset = isOneWay ? (c.lane - (lanes-1)/2) * CFG.ST_LANE : (c.lane + 0.5) * CFG.ST_LANE;
 }
 
 function edgeDir(f,t){
@@ -1716,8 +1778,12 @@ function makeCar(fromBoundary){
           path,pi:1,goal:g,x:0,y:0,ang:0,lng:0,lat:0,lane:0,
           inInt:null,waitAt:null,stuck:0,stopped:false,
           len:CFG.CAR_LEN+Math.random()*1.0,wid:CFG.CAR_WID,
+          eLen:1,laneOffset:0,cachedTgt:0,cachedTgtUpdated:false,repathFailures:0,
+          edgeAx:0,edgeAy:0,edgeDx:0,edgeDy:0,edgeNx:0,edgeNy:0,
+          edgeAlng:0,edgeBlng:0,edgeAlat:0,edgeBlat:0,cosA:1,sinA:0,
       };
       c.lane=chooseLane(c);
+      updateELen(c); // sets eLen, edgeA/B/D/N, ang, cosA, sinA, laneOffset
       syncPos(c);
       return c;
   }
@@ -1725,8 +1791,30 @@ function makeCar(fromBoundary){
 }
 
 function syncPos(c){
-  const p=lanePos(c.from,c.to,c.t,c.lane);
-  c.x=p.x; c.y=p.y; c.ang=p.angle; c.lng=p.lng; c.lat=p.lat;
+  // Hot path: fully cached — no trig, no sqrt, no array lookups
+  const t=c.t, off=c.laneOffset||0;
+  c.x = c.edgeAx + c.edgeDx*t + c.edgeNx*off;
+  c.y = c.edgeAy + c.edgeDy*t + c.edgeNy*off;
+  c.lng = c.edgeAlng + (c.edgeBlng - c.edgeAlng)*t;
+  c.lat = c.edgeAlat + (c.edgeBlat - c.edgeAlat)*t;
+}
+function updateELen(c){
+  const _a=nodes[c.from],_b=nodes[c.to];
+  const _dx=_b.x-_a.x,_dy=_b.y-_a.y;
+  c.eLen=Math.sqrt(_dx*_dx+_dy*_dy)||1;
+  // Cache edge normal (used in syncPos for lane offset)
+  c.edgeNx=-_dy/c.eLen; c.edgeNy=_dx/c.eLen;
+  // Cache edge start and delta for fast syncPos interpolation
+  c.edgeAx=_a.x; c.edgeAy=_a.y;
+  c.edgeDx=_dx;  c.edgeDy=_dy;
+  c.edgeAlng=_a.lng; c.edgeBlng=_b.lng;
+  c.edgeAlat=_a.lat; c.edgeBlat=_b.lat;
+  // Cache angle trig — constant for this edge, saves 2 trig calls per car per tick
+  c.ang=Math.atan2(_dy,_dx);
+  c.cosA=Math.cos(c.ang);
+  c.sinA=Math.sin(c.ang);
+  // Cache lane offset — avoids adjList.find on every syncPos
+  computeLaneOffset(c);
 }
 
 function newGoal(c){
@@ -1737,6 +1825,7 @@ function newGoal(c){
       const p=astar(c.to,g);
       if(p&&p.length>=2){
           c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.lane=chooseLane(c);
+          updateELen(c);
           return;
       }
   }
@@ -1746,6 +1835,7 @@ function newGoal(c){
       c.to = adjList[c.to][Math.floor(Math.random() * adjList[c.to].length)].to;
       c.path = [c.from, c.to];
       c.pi = 1; c.t = 0; c.lane = chooseLane(c);
+      updateELen(c);
   }
 }
 
@@ -1758,6 +1848,7 @@ function forceRepath(c){
       const p=astar(c.from,g);
       if(p&&p.length>=2){
           c.goal=g;c.path=p;c.pi=1;c.from=p[0];c.to=p[1];c.t=0;c.speed=0;c.stuck=0;c.lane=chooseLane(c);
+          updateELen(c);
           return;
       }
   }
@@ -1780,19 +1871,17 @@ function tickCars(){
         trafficGroup.add(trafficInstancedMesh);
     }
 
-    if (trafficInstancedMesh) {
-        trafficInstancedMesh.material.color.set(PARAMS.carColor);
-    }
-
   // ⚡ Bolt Optimization: Only rebuild spatial hash grid occasionally instead of every frame to save CPU time.
   if (tFrame % 6 === 0) shBuild();
     let instanceIndex = 0;
     for(let i = 0; i < cars.length; i++){
         const c = cars[i];
-      const eLen=Math.sqrt((nodes[c.to].x-nodes[c.from].x)**2+(nodes[c.to].y-nodes[c.from].y)**2)||1;
+      // Use cached edge length — recomputed only when car changes edges (below)
+      const eLen = c.eLen || 1;
       let tgt=c.maxSpd;c.stopped=false;
       const dEnd=(1-c.t)*eLen;
-      const cosA=Math.cos(c.ang),sinA=Math.sin(c.ang);
+      // cosA/sinA cached on edge change — no trig per tick
+      const cosA=c.cosA||0, sinA=c.sinA||0;
 
       if(c.inInt!==null){
           if(c.from===c.inInt&&c.t>0.15){markLeave(c,c.inInt);c.inInt=null;}
@@ -1890,20 +1979,22 @@ function tickCars(){
                   }
               }
               c.lane=chooseLane(c);
+              updateELen(c); // cache new edge length
           }
           c.t=Math.max(0,Math.min(c.t,0.99));
       }
       syncPos(c);
 
-      // Fade out logic based on distance
-      const distKm = distanceKm(SITE.lat, SITE.lng, c.lat, c.lng);
+      // Fade out logic — use cheap squared Euclidean in local scene space
+      // instead of haversine (eliminates 4 trig calls per car per tick)
+      const _fdx = c.x - SITE_LOCAL_X, _fdy = c.y - SITE_LOCAL_Y;
+      const _distSq = _fdx*_fdx + _fdy*_fdy;
       let opacity = 1.0;
-      if (distKm > CFG.FADE_RADIUS_KM - 0.2) {
-          // fade from 1 to 0 over the last 0.2km
-          opacity = Math.max(0, 1 - (distKm - (CFG.FADE_RADIUS_KM - 0.2)) / 0.2);
+      if (_distSq > FADE_INNER_SQ) {
+          const dist = Math.sqrt(_distSq);
+          opacity = Math.max(0, 1 - (dist - FADE_INNER_M) / FADE_BAND_M);
       }
-      if (distKm > CFG.FADE_RADIUS_KM && Math.random() < 0.05) {
-          // Sometimes respawn it if it goes out of bounds completely
+      if (_distSq > FADE_OUTER_SQ && Math.random() < 0.05) {
           cleanupCar(c);
           const nc=makeCar(true);
           if(nc)Object.assign(c,nc);
@@ -1911,16 +2002,15 @@ function tickCars(){
 
       if (trafficInstancedMesh && opacity > 0.01) {
           // Local metric coordinates are already available from syncPos (c.x, c.y map to X and Z)
-          _dummyObj.position.set(c.x, 0, c.y);
-          _dummyObj.rotation.set(0, -c.ang, 0);
-          // Apply individual dimensions if car len/wid vary (which they do by random in makeCar)
-          // Actually, we can just bake the car dimensions into the scale since the base geometry is 1x1x1
-          // We use opacity to scale it down slightly as it reaches the edge
+          _dummyPos.set(c.x, 0, c.y);
+          _dummyQuat.setFromAxisAngle(_dummyYAxis, -c.ang);
+          
           const dotR = c.wid * opacity;
-          _dummyObj.scale.set(dotR, dotR, dotR);
-          _dummyObj.updateMatrix();
+          _dummyScale.set(dotR, dotR, dotR);
+          
+          _dummyRenderObj.matrix.compose(_dummyPos, _dummyQuat, _dummyScale);
 
-          trafficInstancedMesh.setMatrixAt(instanceIndex, _dummyObj.matrix);
+          trafficInstancedMesh.setMatrixAt(instanceIndex, _dummyRenderObj.matrix);
           instanceIndex++;
       }
   }
@@ -2458,20 +2548,15 @@ const VEG_COLORS = {
   farmland: '#8a9a56',
 };
 
-// MapLibre layer IDs we create — kept in an array for easy show/hide
+// MapLibre layer IDs for 2D vegetation fill zones
 const VEG_LAYER_IDS = [
   'veg-wood','veg-grass','veg-scrub','veg-wetland',
   'veg-park','veg-garden','veg-cemetery'
 ];
 
-let vegetationGroup = new THREE.Group();
-
 function initVegetation() {
   if (!map) return;
 
-  // ── 2D zone fills (vector tiles) ─────────────────────────────────────────
-  // OpenMapTiles schema: 'landcover' has wood/grass/scrub/wetland;
-  //                      'landuse'   has park/garden/cemetery etc.
   const zoneLayers = [
     { id:'veg-wood',     sl:'landcover', filter:['in',['get','class'],['literal',['wood','forest']]], color: VEG_COLORS.wood,    opacity: 0.60 },
     { id:'veg-grass',    sl:'landcover', filter:['==',['get','class'],'grass'],                        color: VEG_COLORS.grass,   opacity: 0.50 },
@@ -2482,7 +2567,6 @@ function initVegetation() {
     { id:'veg-cemetery', sl:'landuse',   filter:['==',['get','class'],'cemetery'],                    color: '#4a6a4a',          opacity: 0.40 },
   ];
 
-  // Insert below the GLB custom layer so 3D geometry renders on top
   const beforeLayer = map.getLayer('glb-models') ? 'glb-models' : undefined;
   zoneLayers.forEach(({ id, sl, filter, color, opacity }) => {
     if (map.getLayer(id)) return;
@@ -2496,80 +2580,6 @@ function initVegetation() {
       }, beforeLayer);
     } catch(e) { /* source layer may not exist in this tile set */ }
   });
-
-  // ── 3D tree geometry (Overpass API) ──────────────────────────────────────
-  if (glbCustomLayer && glbCustomLayer.scene) {
-    glbCustomLayer.scene.add(vegetationGroup);
-    vegetationGroup.visible = false;
-  }
-  fetchVegetationTrees();
-}
-
-async function fetchVegetationTrees() {
-  // Bbox covers Hudson Yards, High Line, and lower Central Park
-  // Kept tight to avoid fetching tens-of-thousands of trees
-  const bbox = '40.739,-74.020,40.800,-73.940';
-  const query = `[out:json][timeout:25];
-node["natural"="tree"](${bbox});
-out body;`;
-  try {
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(query)
-    });
-    if (!res.ok) throw new Error(res.status);
-    const data = await res.json();
-    buildTreeMeshes(data.elements || []);
-  } catch(e) {
-    console.warn('Vegetation: Overpass fetch failed —', e.message);
-  }
-}
-
-function buildTreeMeshes(elements) {
-  if (!glbCustomLayer || !glbCustomLayer.scene || !elements.length) return;
-
-  const count = Math.min(elements.length, 12000);
-
-  // Trunk: thin cylinder, 0.15m radius, 4m tall
-  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.22, 4, 5);
-  trunkGeo.translate(0, 2, 0); // base at Y=0
-  const trunkMat = new THREE.MeshBasicMaterial({ color: 0x5c3d1e });
-
-  // Canopy: cone, 2.2m base radius, 5m tall, tip at top
-  const canopyGeo = new THREE.ConeGeometry(2.2, 5, 7);
-  canopyGeo.translate(0, 4 + 2.5, 0); // sit on top of trunk
-  const canopyMat = new THREE.MeshBasicMaterial({ color: 0x2e6b2e, transparent: true, opacity: 0.88 });
-
-  const trunkMesh  = new THREE.InstancedMesh(trunkGeo,  trunkMat,  count);
-  const canopyMesh = new THREE.InstancedMesh(canopyGeo, canopyMat, count);
-  trunkMesh.frustumCulled  = false;
-  canopyMesh.frustumCulled = false;
-  trunkMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-  canopyMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
-
-  const dummy = new THREE.Object3D();
-  // Vary tree size slightly for a natural look using a seeded pattern
-  let idx = 0;
-  for (const el of elements) {
-    if (idx >= count) break;
-    if (!el.lon || !el.lat) continue;
-    const lp = mercatorFromLngLat(el.lon, el.lat, 0);
-    // Subtle size variation per tree (0.7×–1.3×) based on position hash
-    const scl = 0.7 + ((Math.abs(Math.sin(el.id * 0.1))) * 0.6);
-    dummy.position.set(lp.x, lp.y, lp.z);
-    dummy.scale.set(scl, scl, scl);
-    dummy.rotation.y = (el.id % 628) * 0.01; // vary azimuth
-    dummy.updateMatrix();
-    trunkMesh.setMatrixAt(idx, dummy.matrix);
-    canopyMesh.setMatrixAt(idx, dummy.matrix);
-    idx++;
-  }
-  trunkMesh.count  = idx;
-  canopyMesh.count = idx;
-
-  vegetationGroup.add(trunkMesh);
-  vegetationGroup.add(canopyMesh);
-  console.log(`Vegetation: ${idx} trees loaded`);
 }
 
 function initTransit(){
@@ -2723,8 +2733,6 @@ function toggleLayer(el){
   if(l==='vegetation'){
     const v = layerState[l] ? 'visible' : 'none';
     VEG_LAYER_IDS.forEach(id => { if(map && map.getLayer(id)) map.setLayoutProperty(id,'visibility',v); });
-    if(vegetationGroup) vegetationGroup.visible = layerState[l];
-    if(map) map.triggerRepaint();
   }
 }
 
@@ -2799,6 +2807,7 @@ function doFirstPersonMovement() {
 }
 
 let isFPDragging = false, fpLastMouse = { x: 0, y: 0 };
+let _fpMousePending = false;
 window.addEventListener('mousedown', e => {
   if (firstPersonActive && e.button === 0) {
     isFPDragging = true;
@@ -2811,21 +2820,55 @@ window.addEventListener('mousemove', e => {
   const dx = e.clientX - fpLastMouse.x;
   const dy = e.clientY - fpLastMouse.y;
   fpLastMouse = { x: e.clientX, y: e.clientY };
-  fpBearing += dx * 0.2;                             // left/right yaw
-  fpPitch = Math.max(1, Math.min(179, fpPitch - dy * 0.2)); // up/down, clamped away from poles
-  applyFPCamera();
+  fpBearing += dx * 0.2;
+  fpPitch = Math.max(1, Math.min(179, fpPitch - dy * 0.2));
+  // Throttle: apply camera at most once per RAF frame
+  if (!_fpMousePending) {
+    _fpMousePending = true;
+    requestAnimationFrame(() => { _fpMousePending = false; applyFPCamera(); });
+  }
 });
 window.addEventListener('mouseup', e => {
   if (e.button === 0) isFPDragging = false;
 });
 
 /* ═══ HUD ═══ */
-function updateMapHUD(){if(!map)return;const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
-document.getElementById('c-lat').textContent=c.lat.toFixed(4);document.getElementById('c-lon').textContent=c.lng.toFixed(4);document.getElementById('c-zoom').textContent=z.toFixed(1);
-document.getElementById('v-zoom').textContent=z.toFixed(1);document.getElementById('v-pitch').textContent=p.toFixed(0)+'°';document.getElementById('v-bearing').textContent=b.toFixed(0)+'°';
-document.getElementById('heading-val').textContent=Math.round(((b%360)+360)%360);drawHeading(b)}
+let _hudLat, _hudLon, _hudZoom, _hudVZoom, _hudVPitch, _hudVBearing, _hudHeading;
+function updateMapHUD(){
+  if(!map)return;
+  if(!_hudLat) {
+    _hudLat=document.getElementById('c-lat');
+    _hudLon=document.getElementById('c-lon');
+    _hudZoom=document.getElementById('c-zoom');
+    _hudVZoom=document.getElementById('v-zoom');
+    _hudVPitch=document.getElementById('v-pitch');
+    _hudVBearing=document.getElementById('v-bearing');
+    _hudHeading=document.getElementById('heading-val');
+  }
+  const c=map.getCenter(),z=map.getZoom(),p=map.getPitch(),b=map.getBearing();
+  _hudLat.textContent=c.lat.toFixed(4);
+  _hudLon.textContent=c.lng.toFixed(4);
+  _hudZoom.textContent=z.toFixed(1);
+  _hudVZoom.textContent=z.toFixed(1);
+  _hudVPitch.textContent=p.toFixed(0)+'°';
+  _hudVBearing.textContent=b.toFixed(0)+'°';
+  _hudHeading.textContent=Math.round(((b%360)+360)%360);
+  drawHeading(b);
+}
 
-function drawHeading(b){const cv=document.getElementById('heading-canvas'),cx=cv.getContext('2d');cx.clearRect(0,0,300,18);cx.strokeStyle='rgba(255,255,255,.12)';cx.lineWidth=.5;cx.font='7px "Fragment Mono"';cx.textAlign='center';
+let _headingCtx=null;
+function drawHeading(b){
+  if(!_headingCtx){
+    const cv=document.getElementById('heading-canvas');
+    if(cv) _headingCtx=cv.getContext('2d');
+  }
+  if(!_headingCtx)return;
+  const cx=_headingCtx;
+  cx.clearRect(0,0,300,18);
+  cx.strokeStyle='rgba(255,255,255,.12)';
+  cx.lineWidth=.5;
+  cx.font='7px "Fragment Mono"';
+  cx.textAlign='center';
 const dirs=['N','NE','E','SE','S','SW','W','NW'];for(let i=-7;i<=7;i++){const deg=(Math.round(b/5)*5+i*5)%360,x=150+i*18;if(x<10||x>290)continue;const a=((deg%360)+360)%360;
 if(a%45===0){cx.fillStyle='rgba(255,255,255,.4)';cx.fillText(dirs[Math.round(a/45)%8]||'',x,7);cx.beginPath();cx.moveTo(x,11);cx.lineTo(x,17);cx.stroke()}
 else if(a%10===0){cx.fillStyle='rgba(255,255,255,.15)';cx.fillText(a,x,7);cx.beginPath();cx.moveTo(x,13);cx.lineTo(x,17);cx.stroke()}else{cx.beginPath();cx.moveTo(x,15);cx.lineTo(x,17);cx.stroke()}}
@@ -2844,8 +2887,13 @@ function tickClock(){const n=new Date();document.getElementById('clock').textCon
 setInterval(tickClock,1000);tickClock();
 
 let fc=0,lastFT=performance.now();
-function startHUD(){updateMapHUD();initBars();simC();let t0=performance.now();
-(function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;drawRadar(t);doFirstPersonMovement();
+let _radarWrap=null;
+function startHUD(){updateMapHUD();initBars();simC();_radarWrap=document.getElementById('radar-wrap');let t0=performance.now();
+(function loop(){requestAnimationFrame(loop);const t=(performance.now()-t0)/1000;
+// Skip radar redraw when hidden — saves canvas 2D work every frame
+if(_radarWrap&&_radarWrap.offsetParent!==null)drawRadar(t);
+if(firstPersonActive)doFirstPersonMovement();
+if(map) map.triggerRepaint();
 fc++;const now=performance.now();if(now-lastFT>=1000){document.getElementById('v-fps').textContent=fc;fc=0;lastFT=now}})()}
 
 
