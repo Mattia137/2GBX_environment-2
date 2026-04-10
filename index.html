@@ -168,6 +168,9 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 .sp-row{display:flex;align-items:center;gap:4px;padding:2px 0}
 .sp-label{color:var(--t4);letter-spacing:1px;text-transform:uppercase;min-width:70px;font-size:7px}
 .sp-val{color:var(--t2);min-width:28px;text-align:right;font-size:7px;font-variant-numeric:tabular-nums}
+.sp-num{width:36px;background:transparent;border:none;border-bottom:1px solid var(--ln3);color:var(--t2);font-size:7px;font-family:'Fragment Mono',monospace;font-variant-numeric:tabular-nums;text-align:right;outline:none;padding:0 1px;-moz-appearance:textfield;appearance:textfield;}
+.sp-num::-webkit-inner-spin-button,.sp-num::-webkit-outer-spin-button{-webkit-appearance:none;appearance:none;margin:0}
+.sp-num:focus{border-bottom-color:var(--t3);color:var(--t1)}
 .sp-slider{flex:1;-webkit-appearance:none;appearance:none;height:1px;background:var(--ln3);outline:none;cursor:pointer}
 .sp-slider::-webkit-slider-thumb{-webkit-appearance:none;width:6px;height:6px;border-radius:50%;background:var(--t2);cursor:pointer;border:none}
 .sp-slider::-moz-range-thumb{width:6px;height:6px;border-radius:50%;background:var(--t2);cursor:pointer;border:none}
@@ -248,7 +251,8 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
     <div class="lb" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
     <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div>
-    <div class="lb" data-layer="powergrid" onclick="toggleLayer(this)"><div class="ind"></div>POWER GRID</div></div>
+    <div class="lb" data-layer="powergrid" onclick="toggleLayer(this)"><div class="ind"></div>POWER GRID</div>
+    <div class="lb on" data-layer="labels" onclick="toggleLayer(this)"><div class="ind"></div>LABELS</div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
     <div class="vr"><div class="vb on" data-view="perspective" onclick="setView('perspective',this)">PERSP</div><div class="vb" data-view="top" onclick="setView('top',this)">TOP</div><div class="vb" data-view="site" onclick="setView('site',this)">SITE</div><div class="vb" data-view="1stp" onclick="setView('1stp',this)">1ST P.</div></div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>READOUT<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
@@ -592,7 +596,7 @@ let map,autoOrbit=false,orbitStart=0,glbLoaded=0;
 let firstPersonActive=false, fpKeys={w:false,a:false,s:false,d:false};
 let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=85;
 let fpSpeed = 0.023; // m/frame ≈ 1.4 m/s at 60 fps (human walking)
-let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false};
+let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false,labels:true};
 let glbCustomLayer=null;
 let powerPopup=null;
 let vectorSourceName='openmaptiles';
@@ -874,6 +878,7 @@ function updateCulturalTags() {
           }
           const tag = createCulturalTag(name, coords, false, roofHeight);
           tag.name = id;
+          tag.visible = layerState.labels;
           culturalTagsGroup.add(tag);
           createdCulturalTags.add(id);
         }
@@ -2422,6 +2427,12 @@ function toggleLayer(el){
     if(siteMarkerMesh) siteMarkerMesh.visible = layerState[l];
     if(map) map.triggerRepaint();
   }
+  if(l==='labels'){
+    culturalTagsGroup.visible = layerState[l];
+    // site marker lives inside culturalTagsGroup; re-apply its own toggle on top
+    if(siteMarkerMesh) siteMarkerMesh.visible = layerState[l] && layerState['site-marker'];
+    if(map) map.triggerRepaint();
+  }
 }
 
 function setView(type,el){
@@ -2743,13 +2754,41 @@ function setupSettingsPanel() {
         if (map) map.triggerRepaint();
       });
     } else {
-      el.addEventListener('input', () => {
-        const v = parseFloat(el.value);
-        PARAMS[param] = v;
-        if (valEl) valEl.textContent = fmt(v);
-        cb();
-        if (map) map.triggerRepaint();
-      });
+      // Replace static sp-val span with an editable number input
+      if (valEl) {
+        const numInput = document.createElement('input');
+        numInput.type = 'number';
+        numInput.className = 'sp-num';
+        numInput.min = el.min; numInput.max = el.max; numInput.step = el.step;
+        numInput.value = el.value;
+        valEl.replaceWith(numInput);
+
+        // Slider → number input
+        el.addEventListener('input', () => {
+          const v = parseFloat(el.value);
+          PARAMS[param] = v;
+          numInput.value = fmt(v);
+          cb();
+          if (map) map.triggerRepaint();
+        });
+        // Number input → slider
+        numInput.addEventListener('input', () => {
+          const v = Math.min(parseFloat(el.max), Math.max(parseFloat(el.min), parseFloat(numInput.value) || 0));
+          PARAMS[param] = v;
+          el.value = v;
+          numInput.value = fmt(v);
+          cb();
+          if (map) map.triggerRepaint();
+        });
+        // Prevent 's' key from closing the panel while typing in the number field
+        numInput.addEventListener('keydown', e => e.stopPropagation());
+      } else {
+        el.addEventListener('input', () => {
+          PARAMS[param] = parseFloat(el.value);
+          cb();
+          if (map) map.triggerRepaint();
+        });
+      }
     }
   }
   function wireColorStr(id, param, cb) {
