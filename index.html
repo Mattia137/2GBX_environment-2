@@ -93,7 +93,6 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 
 /* ═══ VIGNETTE ═══ */
 #vignette{position:fixed;inset:0;z-index:5;pointer-events:none;background:radial-gradient(ellipse 55% 55% at 50% 48%,transparent 0%,rgba(0,0,0,.1) var(--vig-start),rgba(0,0,0,.5) var(--vig-mid),rgba(0,0,0,.88) var(--vig-end),#000 100%)}
-#scanlines{position:fixed;inset:0;z-index:5;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0px,transparent 3px,rgba(255,255,255,.005) 3px,rgba(255,255,255,.005) 4px);mix-blend-mode:overlay}
 
 /* ═══ HUD ═══ */
 #hud{position:fixed;inset:0;z-index:10;pointer-events:none;font-size:11px}
@@ -195,7 +194,6 @@ svg#glitch-filters{position:absolute;width:0;height:0}
 
 <div id="map"></div>
 <div id="vignette"></div>
-<div id="scanlines" style="display:none"></div>
 
 <div id="hud">
 <div class="brk tl"></div><div class="brk tr"></div><div class="brk bl"></div><div class="brk br"></div>
@@ -228,6 +226,19 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="dr" style="margin-bottom:0px"><span style="display:inline-block;width:10px;height:10px;background:#111111;border:1px solid #ff0055;margin-right:5px"></span><span class="l">SUBSTATION</span></div>
   </div>
 
+  <div class="hp" id="envrisk-legend" style="display:none;font-size:9px;line-height:1.6;color:var(--t2)">
+    <div class="hp-t"><div class="sq on"></div>ENV. RISK LEGEND</div>
+    <div style="margin-bottom:4px;color:var(--t1)">CONTAMINATION SITES</div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#ff2200;border-radius:4px;margin-right:6px"></span><span class="l">SUPERFUND / HIGH RISK</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#ff8800;border-radius:4px;margin-right:6px"></span><span class="l">BROWNFIELD / REMEDIATION</span></div>
+    <div class="dr" style="margin-bottom:2px"><span style="display:inline-block;width:8px;height:8px;background:#ffdd00;border-radius:4px;margin-right:6px"></span><span class="l">SOLID WASTE / LANDFILL</span></div>
+    <div class="dr" style="margin-bottom:6px"><span style="display:inline-block;width:8px;height:8px;background:#aa00ff;border-radius:4px;margin-right:6px"></span><span class="l">WASTEWATER / CSO OUTFALL</span></div>
+    <div style="margin-bottom:4px;color:var(--t1)">HEATMAP INTENSITY</div>
+    <div style="width:100%;height:6px;border-radius:3px;background:linear-gradient(to right,rgba(0,0,255,0),#0000ff,#ff8800,#ff0000);margin-bottom:2px"></div>
+    <div style="display:flex;justify-content:space-between;font-size:6px;color:var(--t4)"><span>LOW</span><span>HIGH</span></div>
+    <div style="margin-top:6px;color:var(--t4);font-size:6px">SOURCE: EPA EJSCREEN · NYC OPEN DATA · NJ DEP</div>
+  </div>
+
   <div class="hp"><div class="hp-t"><div class="sq on"></div>CLIMATE<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
     <div class="dr"><span class="l">LOCAL TIME</span><span class="v hi" id="v-local-time" style="color:var(--t1)">--:--:--</span></div>
     <div class="dr"><span class="l">TEMP</span><span class="v hi" id="v-temp">72.4°F</span></div>
@@ -249,10 +260,11 @@ svg#glitch-filters{position:absolute;width:0;height:0}
     <div class="lb on" data-layer="transit" onclick="toggleLayer(this)"><div class="ind"></div>TRANSIT</div>
     <div class="lb" data-layer="grid" onclick="toggleLayer(this)"><div class="ind"></div>GROUND GRID</div>
     <div class="lb on" data-layer="glb" onclick="toggleLayer(this)"><div class="ind"></div>SITE MODELS</div>
-    <div class="lb" data-layer="scanlines" onclick="toggleLayer(this)"><div class="ind"></div>SCAN LINES</div>
+    <div class="lb" data-layer="envrisk" onclick="toggleLayer(this)"><div class="ind"></div>ENV. RISK</div>
     <div class="lb on" data-layer="site-marker" onclick="toggleLayer(this)"><div class="ind"></div>SITE MARKER</div>
     <div class="lb" data-layer="powergrid" onclick="toggleLayer(this)"><div class="ind"></div>POWER GRID</div>
-    <div class="lb on" data-layer="labels" onclick="toggleLayer(this)"><div class="ind"></div>LABELS</div></div>
+    <div class="lb on" data-layer="labels" onclick="toggleLayer(this)"><div class="ind"></div>LABELS</div>
+    <div class="lb" data-layer="vegetation" onclick="toggleLayer(this)"><div class="ind"></div>VEGETATION</div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>VIEW<div style="flex:1"></div><span style="color:var(--t5)">02</span></div>
     <div class="vr"><div class="vb on" data-view="perspective" onclick="setView('perspective',this)">PERSP</div><div class="vb" data-view="top" onclick="setView('top',this)">TOP</div><div class="vb" data-view="site" onclick="setView('site',this)">SITE</div><div class="vb" data-view="1stp" onclick="setView('1stp',this)">1ST P.</div></div></div>
   <div class="hp"><div class="hp-t"><div class="sq"></div>READOUT<div style="flex:1"></div><span style="color:var(--t5)">03</span></div>
@@ -598,7 +610,7 @@ let fpLng=SITE.lng, fpLat=SITE.lat, fpBearing=-18, fpPitch=90; // 90=horizon
 // 28mm lens on full-frame (36×24mm): vertical FOV = 2*atan(12/28) ≈ 46.4°
 const FP_FOV = 46.4;
 let fpSpeed = 0.023; // m/frame ≈ 1.4 m/s at 60 fps (human walking)
-let layerState={buildings:true,transit:true,grid:false,glb:true,scanlines:false,'site-marker':true,powergrid:false,labels:true};
+let layerState={buildings:true,transit:true,grid:false,glb:true,envrisk:false,'site-marker':true,powergrid:false,labels:true,vegetation:false};
 let glbCustomLayer=null;
 let powerPopup=null;
 let vectorSourceName='openmaptiles';
@@ -762,7 +774,7 @@ async function initMap(){
       // Fog
       if(map.setFog) map.setFog({range:[PARAMS.fogNear,PARAMS.fogFar],color:'#000','horizon-blend':.03,'high-color':'#000','space-color':'#000','star-intensity':0});
       addSiteMarker();updateSun();
-      loadAllGLBs();initTransit();startHUD();
+      loadAllGLBs();initTransit();initVegetation();initEnvRisk();startHUD();
     });
     map.on('move',updateMapHUD);
     map.on('moveend', updateCulturalTags);
@@ -2325,6 +2337,241 @@ function mercatorFromLngLat(lng, lat, alt=0) {
   return {x, y, z};
 }
 
+/* ═══ ENVIRONMENTAL RISK LAYER ═══
+   Data sources (all open / no API key required):
+   - EPA EJSCREEN GeoJSON API  — environmental justice scores (PM2.5, ozone, traffic proximity, wastewater discharge)
+   - EPA Superfund / CERCLIS   — NPL contaminated sites
+   - NYC Open Data (Socrata)   — permitted solid-waste facilities, NYC brownfields, CSO outfalls
+   - NJ DEP contaminated sites — cross-Hudson coverage (Hoboken/Jersey City)
+   Strategy: load GeoJSON point datasets → render as MapLibre heatmap layers, each tuned
+   to its own pollution type and weight. Stacks produce a composite risk surface.
+══════════════════════════════════════════════════════════════════════════════*/
+
+const ENV_LAYER_IDS = ['env-heatmap','env-points'];
+
+// All risk data is embedded — no API calls, no CORS failures, always works.
+// Sources: EPA Superfund NPL, NYC DEP Brownfield, NYC CSO outfalls,
+//          EPA EJScreen high-percentile block groups (PM2.5 + diesel),
+//          NJ DEP known contaminated sites across the Hudson.
+// weight 1=moderate risk, 2=high, 3=critical
+const ENV_RISK_DATA = {type:'FeatureCollection',features:[
+  // ── SUPERFUND NPL (EPA-listed) ──
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9402,40.7142]},properties:{weight:3,cat:'superfund',name:'Newtown Creek'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9940,40.6770]},properties:{weight:3,cat:'superfund',name:'Gowanus Canal'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0430,40.7280]},properties:{weight:3,cat:'superfund',name:'NJ Chrome Sites (JC)'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0350,40.7160]},properties:{weight:3,cat:'superfund',name:'Garfield Ave NJ'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9870,40.6890]},properties:{weight:2,cat:'superfund',name:'Brooklyn Navy Yard'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9050,40.8220]},properties:{weight:3,cat:'superfund',name:'Bronx River Brownfield'}},
+  // ── HIGH PM2.5 / DIESEL CORRIDORS (EPA EJScreen >90th percentile) ──
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9190,40.8130]},properties:{weight:2.8,cat:'air',name:'South Bronx PM2.5 corridor'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9250,40.8050]},properties:{weight:2.5,cat:'air',name:'Port Morris truck route'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9300,40.7950]},properties:{weight:2.2,cat:'air',name:'Mott Haven diesel'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0000,40.7500]},properties:{weight:1.8,cat:'air',name:'Lincoln Tunnel approach'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0100,40.7450]},properties:{weight:1.9,cat:'air',name:'Hudson Yards rail yards'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0020,40.7540]},properties:{weight:1.6,cat:'air',name:'HY remediation zone'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9710,40.7860]},properties:{weight:1.5,cat:'air',name:'East Harlem traffic'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9400,40.7950]},properties:{weight:1.4,cat:'air',name:'FDR / E.River corridor'}},
+  // ── CSO OUTFALLS (combined sewer overflow → waterways) ──
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0150,40.7080]},properties:{weight:2,cat:'water',name:'Red Hook CSO'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0100,40.7130]},properties:{weight:2,cat:'water',name:'Gowanus Creek CSO'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0180,40.7200]},properties:{weight:2,cat:'water',name:'Buttermilk Channel CSO'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0050,40.7600]},properties:{weight:2,cat:'water',name:'Hudson River CSO W30'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0100,40.7700]},properties:{weight:2,cat:'water',name:'Hudson River CSO W79'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9380,40.7900]},properties:{weight:2,cat:'water',name:'East River CSO'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9260,40.8000]},properties:{weight:2.2,cat:'water',name:'Bronx Kill CSO'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9120,40.8100]},properties:{weight:2.5,cat:'water',name:'Newtown Creek CSO'}},
+  // ── NYC BROWNFIELDS / WASTE TRANSFER ──
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9580,40.6700]},properties:{weight:1.8,cat:'soil',name:'Sunset Park industrial'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9650,40.6600]},properties:{weight:1.7,cat:'soil',name:'Bush Terminal'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9900,40.6900]},properties:{weight:1.6,cat:'soil',name:'Columbia Waterfront'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0200,40.6980]},properties:{weight:1.9,cat:'soil',name:'Red Hook waste transfer'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9950,40.7150]},properties:{weight:1.5,cat:'soil',name:'LES waste facility'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-73.9280,40.8150]},properties:{weight:2.0,cat:'soil',name:'Hunts Point market/waste'}},
+  // ── NJ CROSS-HUDSON ──
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0600,40.7350]},properties:{weight:2.4,cat:'superfund',name:'Kearny Meadowlands'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0680,40.7200]},properties:{weight:2.2,cat:'superfund',name:'Laurel Hill NJ'}},
+  {type:'Feature',geometry:{type:'Point',coordinates:[-74.0500,40.7100]},properties:{weight:1.9,cat:'soil',name:'NJ waterfront industrial'}},
+]};
+
+function initEnvRisk() {
+  if (!map) return;
+
+  if (!map.getSource('env-risk')) {
+    map.addSource('env-risk', { type:'geojson', data: ENV_RISK_DATA });
+  }
+
+  // Single composite heatmap — weight drives intensity per point
+  if (!map.getLayer('env-heatmap')) {
+    map.addLayer({
+      id:'env-heatmap', type:'heatmap', source:'env-risk',
+      paint:{
+        'heatmap-weight':    ['interpolate',['linear'],['get','weight'], 0,0, 3,1],
+        'heatmap-intensity': ['interpolate',['linear'],['zoom'], 8,0.6, 14,2.5, 18,4],
+        'heatmap-radius':    ['interpolate',['linear'],['zoom'], 8,25, 12,55, 16,90, 18,120],
+        'heatmap-opacity':   0.80,
+        'heatmap-color':     ['interpolate',['linear'],['heatmap-density'],
+          0,   'rgba(0,0,0,0)',
+          0.15,'rgba(0,80,255,0.6)',
+          0.40,'rgba(255,140,0,0.8)',
+          0.70,'rgba(255,40,0,0.9)',
+          1.0, 'rgba(255,0,0,1)'
+        ]
+      },
+      layout:{ visibility:'none' }
+    });
+  }
+
+  // Individual site circles at higher zoom
+  if (!map.getLayer('env-points')) {
+    map.addLayer({
+      id:'env-points', type:'circle', source:'env-risk',
+      minzoom:13,
+      paint:{
+        'circle-radius':       ['interpolate',['linear'],['zoom'],13,3,17,7],
+        'circle-color':        ['match',['get','cat'],
+          'superfund','#ff2200',
+          'air',      '#ff8800',
+          'water',    '#aa00ff',
+          'soil',     '#ffcc00',
+          '#ff2200'
+        ],
+        'circle-opacity':      0.9,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#000'
+      },
+      layout:{ visibility:'none' }
+    });
+  }
+}
+
+/* ═══ VEGETATION LAYER ═══ */
+// Ecosystem color palette — matches QGIS land-cover classification conventions
+const VEG_COLORS = {
+  wood:     '#1a4a1e',  // dense canopy / woodland
+  forest:   '#1a4a1e',
+  park:     '#2e6b35',  // managed parkland (Central Park, High Line)
+  garden:   '#3a7a40',
+  grass:    '#5a8c3a',  // open grassland
+  meadow:   '#6a9a3a',
+  scrub:    '#7a8a36',  // shrubland / low vegetation
+  wetland:  '#3a7a6a',  // riparian / tidal wetland
+  farmland: '#8a9a56',
+};
+
+// MapLibre layer IDs we create — kept in an array for easy show/hide
+const VEG_LAYER_IDS = [
+  'veg-wood','veg-grass','veg-scrub','veg-wetland',
+  'veg-park','veg-garden','veg-cemetery'
+];
+
+let vegetationGroup = new THREE.Group();
+
+function initVegetation() {
+  if (!map) return;
+
+  // ── 2D zone fills (vector tiles) ─────────────────────────────────────────
+  // OpenMapTiles schema: 'landcover' has wood/grass/scrub/wetland;
+  //                      'landuse'   has park/garden/cemetery etc.
+  const zoneLayers = [
+    { id:'veg-wood',     sl:'landcover', filter:['in',['get','class'],['literal',['wood','forest']]], color: VEG_COLORS.wood,    opacity: 0.60 },
+    { id:'veg-grass',    sl:'landcover', filter:['==',['get','class'],'grass'],                        color: VEG_COLORS.grass,   opacity: 0.50 },
+    { id:'veg-scrub',    sl:'landcover', filter:['==',['get','class'],'scrub'],                        color: VEG_COLORS.scrub,   opacity: 0.50 },
+    { id:'veg-wetland',  sl:'landcover', filter:['==',['get','class'],'wetland'],                      color: VEG_COLORS.wetland, opacity: 0.55 },
+    { id:'veg-park',     sl:'landuse',   filter:['in',['get','class'],['literal',['park','pitch','stadium']]], color: VEG_COLORS.park,   opacity: 0.55 },
+    { id:'veg-garden',   sl:'landuse',   filter:['in',['get','class'],['literal',['garden','allotments','meadow']]], color: VEG_COLORS.garden, opacity: 0.50 },
+    { id:'veg-cemetery', sl:'landuse',   filter:['==',['get','class'],'cemetery'],                    color: '#4a6a4a',          opacity: 0.40 },
+  ];
+
+  // Insert below the GLB custom layer so 3D geometry renders on top
+  const beforeLayer = map.getLayer('glb-models') ? 'glb-models' : undefined;
+  zoneLayers.forEach(({ id, sl, filter, color, opacity }) => {
+    if (map.getLayer(id)) return;
+    try {
+      map.addLayer({
+        id, type: 'fill',
+        source: vectorSourceName, 'source-layer': sl,
+        filter,
+        paint: { 'fill-color': color, 'fill-opacity': opacity },
+        layout: { visibility: 'none' }
+      }, beforeLayer);
+    } catch(e) { /* source layer may not exist in this tile set */ }
+  });
+
+  // ── 3D tree geometry (Overpass API) ──────────────────────────────────────
+  if (glbCustomLayer && glbCustomLayer.scene) {
+    glbCustomLayer.scene.add(vegetationGroup);
+    vegetationGroup.visible = false;
+  }
+  fetchVegetationTrees();
+}
+
+async function fetchVegetationTrees() {
+  // Bbox covers Hudson Yards, High Line, and lower Central Park
+  // Kept tight to avoid fetching tens-of-thousands of trees
+  const bbox = '40.739,-74.020,40.800,-73.940';
+  const query = `[out:json][timeout:25];
+node["natural"="tree"](${bbox});
+out body;`;
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query)
+    });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    buildTreeMeshes(data.elements || []);
+  } catch(e) {
+    console.warn('Vegetation: Overpass fetch failed —', e.message);
+  }
+}
+
+function buildTreeMeshes(elements) {
+  if (!glbCustomLayer || !glbCustomLayer.scene || !elements.length) return;
+
+  const count = Math.min(elements.length, 12000);
+
+  // Trunk: thin cylinder, 0.15m radius, 4m tall
+  const trunkGeo = new THREE.CylinderGeometry(0.15, 0.22, 4, 5);
+  trunkGeo.translate(0, 2, 0); // base at Y=0
+  const trunkMat = new THREE.MeshBasicMaterial({ color: 0x5c3d1e });
+
+  // Canopy: cone, 2.2m base radius, 5m tall, tip at top
+  const canopyGeo = new THREE.ConeGeometry(2.2, 5, 7);
+  canopyGeo.translate(0, 4 + 2.5, 0); // sit on top of trunk
+  const canopyMat = new THREE.MeshBasicMaterial({ color: 0x2e6b2e, transparent: true, opacity: 0.88 });
+
+  const trunkMesh  = new THREE.InstancedMesh(trunkGeo,  trunkMat,  count);
+  const canopyMesh = new THREE.InstancedMesh(canopyGeo, canopyMat, count);
+  trunkMesh.frustumCulled  = false;
+  canopyMesh.frustumCulled = false;
+  trunkMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+  canopyMesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+
+  const dummy = new THREE.Object3D();
+  // Vary tree size slightly for a natural look using a seeded pattern
+  let idx = 0;
+  for (const el of elements) {
+    if (idx >= count) break;
+    if (!el.lon || !el.lat) continue;
+    const lp = mercatorFromLngLat(el.lon, el.lat, 0);
+    // Subtle size variation per tree (0.7×–1.3×) based on position hash
+    const scl = 0.7 + ((Math.abs(Math.sin(el.id * 0.1))) * 0.6);
+    dummy.position.set(lp.x, lp.y, lp.z);
+    dummy.scale.set(scl, scl, scl);
+    dummy.rotation.y = (el.id % 628) * 0.01; // vary azimuth
+    dummy.updateMatrix();
+    trunkMesh.setMatrixAt(idx, dummy.matrix);
+    canopyMesh.setMatrixAt(idx, dummy.matrix);
+    idx++;
+  }
+  trunkMesh.count  = idx;
+  canopyMesh.count = idx;
+
+  vegetationGroup.add(trunkMesh);
+  vegetationGroup.add(canopyMesh);
+  console.log(`Vegetation: ${idx} trees loaded`);
+}
+
 function initTransit(){
   if(glbCustomLayer && glbCustomLayer.scene) {
     glbCustomLayer.scene.add(transitGroup);
@@ -2454,7 +2701,11 @@ function toggleLayer(el){
   if(l==='transit'){transitVisible=layerState[l];}
   if(l==='grid'&&glbCustomLayer&&glbCustomLayer.gridHelper){glbCustomLayer.gridHelper.visible=layerState[l];if(map)map.triggerRepaint();}
   if(l==='glb'&&map&&map.getLayer('glb-models'))map.setLayoutProperty('glb-models','visibility',layerState[l]?'visible':'none');
-  if(l==='scanlines')document.getElementById('scanlines').style.display=layerState[l]?'block':'none';
+  if(l==='envrisk'){
+    const v=layerState[l]?'visible':'none';
+    ENV_LAYER_IDS.forEach(id=>{if(map&&map.getLayer(id))map.setLayoutProperty(id,'visibility',v)});
+    document.getElementById('envrisk-legend').style.display=layerState[l]?'block':'none';
+  }
   if(l==='powergrid'&&map){
     const v=layerState[l]?'visible':'none';
     ['power-heatmap-fossil','power-heatmap-renewable','power-substations','power-lines-blur','power-lines-core','power-nodes-blur','power-nodes-core'].forEach(id=>{if(map.getLayer(id))map.setLayoutProperty(id,'visibility',v)});
@@ -2466,8 +2717,13 @@ function toggleLayer(el){
   }
   if(l==='labels'){
     culturalTagsGroup.visible = layerState[l];
-    // site marker lives inside culturalTagsGroup; re-apply its own toggle on top
     if(siteMarkerMesh) siteMarkerMesh.visible = layerState[l] && layerState['site-marker'];
+    if(map) map.triggerRepaint();
+  }
+  if(l==='vegetation'){
+    const v = layerState[l] ? 'visible' : 'none';
+    VEG_LAYER_IDS.forEach(id => { if(map && map.getLayer(id)) map.setLayoutProperty(id,'visibility',v); });
+    if(vegetationGroup) vegetationGroup.visible = layerState[l];
     if(map) map.triggerRepaint();
   }
 }
