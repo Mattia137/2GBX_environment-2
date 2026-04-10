@@ -614,6 +614,14 @@ async function initMap(){
     const res=await fetch(`${VERCEL_API}/api/get-style`);if(!res.ok)throw new Error(`API ${res.status}`);
     let style=await res.json();style=cleanStyle(style);
     map=new maplibregl.Map({container:'map',style,center:CAM.center,zoom:CAM.zoom,pitch:CAM.pitch,bearing:CAM.bearing,antialias:true,maxPitch:85});
+    // Intercept scroll wheel on the canvas to control 1st person speed reliably
+    map.getCanvas().addEventListener('wheel', e => {
+      if (!firstPersonActive) return;
+      e.preventDefault();
+      e.stopPropagation();
+      fpSpeed = Math.max(FP_SPEED_MIN, Math.min(FP_SPEED_MAX, fpSpeed * (e.deltaY > 0 ? 0.8 : 1.25)));
+    }, { passive: false });
+
     window.map = map;
     map.on('load',()=>{
 
@@ -2481,12 +2489,6 @@ function doFirstPersonMovement() {
   applyFPCamera();
 }
 
-// Scroll wheel → adjust movement speed (does not zoom the map)
-window.addEventListener('wheel', e => {
-  if (!firstPersonActive) return;
-  e.preventDefault();
-  fpSpeed = Math.max(FP_SPEED_MIN, Math.min(FP_SPEED_MAX, fpSpeed * (e.deltaY > 0 ? 0.8 : 1.25)));
-}, { passive: false });
 
 let isFPDragging = false, fpLastMouse = { x: 0, y: 0 };
 window.addEventListener('mousedown', e => {
