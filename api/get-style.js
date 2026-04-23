@@ -1,5 +1,20 @@
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // 🛡️ Sentinel: Prevent Overly Permissive CORS
+  // Only allow requests from our production domain and local dev environment
+  const allowedOrigins = [
+    'https://2gbxenvironment-2.vercel.app',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080'
+  ];
+
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    // If not in allowed list, default to production (or you could omit the header entirely)
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+  }
+
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
